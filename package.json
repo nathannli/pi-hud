@@ -9,19 +9,31 @@
     "url": "git+https://github.com/ludevdot/pi-hud.git"
   },
   "packageManager": "pnpm@10.30.2",
-  "keywords": ["pi-package", "pi", "hud", "tui", "coding-agent"],
+  "keywords": [
+    "pi-package",
+    "pi",
+    "hud",
+    "tui",
+    "coding-agent"
+  ],
   "files": [
     "extensions",
     "assets",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "scripts"
   ],
   "scripts": {
     "test": "vitest --run",
-    "pack:dry": "pnpm pack --dry-run"
+    "pack:dry": "pnpm pack --dry-run",
+    "verify:package": "node scripts/verify-package-files.mjs",
+    "prepack": "pnpm test && pnpm run verify:package",
+    "prepublishOnly": "pnpm test && pnpm run verify:package"
   },
   "pi": {
-    "extensions": ["./extensions"],
+    "extensions": [
+      "./extensions"
+    ],
     "image": "https://cdn.jsdelivr.net/npm/pi-hud/assets/pi-hud.jpeg"
   },
   "peerDependencies": {
