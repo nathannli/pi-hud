@@ -1,0 +1,42 @@
+name: Optimize images
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "**.jpg"
+      - "**.jpeg"
+      - "**.png"
+      - "**.webp"
+      - "**.avif"
+      - "**.gif"
+      - "**.svg"
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: 🏙️ Optimize PNG, JPG, WebP, GIF
+        uses: calibreapp/image-actions@main
+        with:
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          compressOnly: true
+
+      - name: 🗾 Optimize SVG
+        run: |
+          npm install -g svgo
+          find assets -name '*.svg' -print0 2>/dev/null | xargs -0 -r svgo
+
+      - name: 🚀 Commit SVG changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: optimize SVG images"
+          file_pattern: "*.svg **/*.svg"
