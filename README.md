@@ -1,4 +1,4 @@
-# pi-hud
+![pi-hud](assets/pi-hud.jpeg)
 
 Persistent right-side HUD for [Pi](https://pi.dev).
 
