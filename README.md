@@ -57,9 +57,9 @@ Run `/hud` again, or press `f2`, to hide or show it. Press `ctrl+h` to minimize 
 
 ## Commands
 
-| Command | Description |
-| --- | --- |
-| `/hud` | Toggle the hud. |
+| Command         | Description                                              |
+| --------------- | -------------------------------------------------------- |
+| `/hud`          | Toggle the hud.                                          |
 | `/hud-settings` | Configure position, shortcuts, auto-compact, and sizing. |
 
 ## Settings
@@ -98,7 +98,7 @@ Shortcut changes require `/reload` because shortcuts are registered when the ext
 
 ## Notes
 
-- MCP servers are shown only when Pi has `pi-mcp-adapter` installed; config files alone do not enable the section.
+- MCP servers are shown only when Pi has [`pi-mcp-adapter`](https://pi.dev/packages/pi-mcp-adapter?name=pi-mcp-adap) installed; config files alone do not enable the section.
 - Subagent status is based on Pi extension events and `pi-subagents` tool/result shapes when available.
 - The HUD auto-compacts for the full assistant turn and expands when the turn ends, instead of changing state on each reasoning update.
 - The overlay is hidden on narrow terminals under the configured `minTerminalWidth`.

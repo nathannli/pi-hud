@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tgz
+*.log
+.DS_Store
+coverage/
+.vitest/
+# Local Pi runtime state
+.atl/
