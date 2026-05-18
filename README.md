@@ -1,0 +1,114 @@
+# pi-hud
+
+Persistent right-side HUD for [Pi](https://pi.dev).
+
+It shows the current session, model/context usage, subagent activity, project path, and git branch without stealing focus from the editor.
+
+## Features
+
+- Starts visible by default when the extension is installed.
+- `/hud` toggle command.
+- `/hud-settings` configuration command.
+- Default hide/show keyboard shortcut: `f2`.
+- Default minimize/expand keyboard shortcut: `ctrl+h`.
+- Non-blocking TUI overlay: keep typing while the hud is visible.
+- Live subagent status:
+  - running/done/error counts;
+  - active task label;
+  - elapsed time;
+  - token/context count when available.
+- Session context usage and cost.
+- Project path and current git branch.
+- MCP server names when `pi-mcp-adapter` is installed.
+
+## Install
+
+```bash
+pi install npm:pi-hud
+```
+
+For project-local install:
+
+```bash
+pi install -l npm:pi-hud
+```
+
+## Try locally
+
+From this repository:
+
+```bash
+pi -e .
+```
+
+From the Pi monorepo checkout during development:
+
+```bash
+./pi-test.sh --no-env -e /path/to/pi-hud
+```
+
+The HUD opens automatically on session start. Inside Pi, run:
+
+```text
+/hud
+```
+
+Run `/hud` again, or press `f2`, to hide or show it. Press `ctrl+h` to minimize or expand it.
+
+## Commands
+
+| Command | Description |
+| --- | --- |
+| `/hud` | Toggle the hud. |
+| `/hud-settings` | Configure position, shortcuts, auto-compact, and sizing. |
+
+## Settings
+
+`pi-hud` reads a `hud` object from Pi settings. Global settings live in `~/.pi/agent/settings.json`; project settings in `.pi/settings.json` override them.
+
+Defaults:
+
+```json
+{
+  "hud": {
+    "position": "top-right",
+    "shortcut": "f2",
+    "minimizeShortcut": "ctrl+h",
+    "autoCompactWhileStreaming": true,
+    "expandedWidth": 42,
+    "compactWidth": 26,
+    "minTerminalWidth": 90,
+    "margin": { "top": 1, "right": 1, "bottom": 1 }
+  }
+}
+```
+
+Supported `position` values are `center`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, `top-center`, `bottom-center`, `left-center`, and `right-center`.
+
+Examples:
+
+```text
+/hud-settings position bottom-right
+/hud-settings shortcut ctrl+shift+h
+/hud-settings minimizeShortcut ctrl+h
+/hud-settings autoCompactWhileStreaming off
+```
+
+Shortcut changes require `/reload` because shortcuts are registered when the extension loads. Do not bind HUD shortcuts to `enter`, `return`, `alt+m`, `ctrl+m`, `ctrl+shift+m`, `ctrl+j`, or `ctrl+shift+j`; those conflict with Pi or terminal input keys.
+
+## Notes
+
+- MCP servers are shown only when Pi has `pi-mcp-adapter` installed; config files alone do not enable the section.
+- Subagent status is based on Pi extension events and `pi-subagents` tool/result shapes when available.
+- The HUD auto-compacts for the full assistant turn and expands when the turn ends, instead of changing state on each reasoning update.
+- The overlay is hidden on narrow terminals under the configured `minTerminalWidth`.
+
+## Inspiration
+
+`pi-hud` is inspired by [sub-agent-statusline](https://github.com/Joaquinvesapa/sub-agent-statusline).
+
+---
+
+## License
+
+MIT
