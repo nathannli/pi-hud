@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+### Patch Changes
+
+- Rename the packaged release skill to `pi-hud-release` so it no longer collides with other Pi release skills.
+
 ## 0.1.4
 
 ### Patch Changes

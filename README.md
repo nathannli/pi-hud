@@ -207,7 +207,7 @@ For example, a project-local `.mcp.json` can make a server appear in the HUD eve
 
 User-facing changes are tracked in [CHANGELOG.md](CHANGELOG.md). Maintainer release steps are documented in [RELEASING.md](RELEASING.md).
 
-The package also ships a `release` skill so installed Pi agents can follow the project release workflow with the same checklist.
+The package also ships a `pi-hud-release` skill so installed Pi agents can follow the project release workflow with the same checklist without colliding with generic release skills.
 
 ## Inspiration
 

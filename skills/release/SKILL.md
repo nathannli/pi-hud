@@ -1,5 +1,5 @@
 ---
-name: release
+name: pi-hud-release
 description: "Trigger: release pi-hud, publish, npm publish, version bump, changelog, changeset, release tag. Release pi-hud through its pinned Changesets and GitHub tag workflow."
 license: MIT
 metadata:
