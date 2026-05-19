@@ -8,7 +8,7 @@ export const DEFAULT_HUD_SETTINGS: HudSettings = {
 	shortcut: "f2",
 	minimizeShortcut: "ctrl+h",
 	autoCompactWhileStreaming: true,
-	expandedWidth: 42,
+	expandedWidth: 200,
 	compactWidth: 26,
 	minTerminalWidth: 90,
 	margin: { top: 1, right: 1, bottom: 1 },
