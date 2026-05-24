@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+### Patch Changes
+
+- 72d955e: Change the default HUD toggle shortcut from `f2` to `ctrl+shift+h` so fresh installs avoid function-key handling issues in macOS, terminal, and multiplexer stacks.
+
 ## 0.4.0
 
 ### Minor Changes
