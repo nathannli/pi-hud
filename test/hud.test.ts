@@ -263,14 +263,33 @@ describe("pi-hud extension", () => {
 		for (const handler of handlers) await handler({ reason: "startup" }, ctx);
 		expect(sendMessage).toHaveBeenCalledWith({
 			customType: "pi-hud-notification",
-			content: "/hud or ctrl+shift+h toggle to show or hide HUD",
+			content: "Pi HUD loaded. Shortcut: ctrl+shift+h.",
 			display: true,
 		});
+		expect(String(sendMessage.mock.calls[0]?.[0]?.content)).not.toMatch(
+			/^\/[\w-]+/,
+		);
 		expect(notify).not.toHaveBeenCalled();
 
 		sendMessage.mockClear();
 		for (const handler of handlers) await handler({ reason: "reload" }, ctx);
 		expect(sendMessage).not.toHaveBeenCalled();
+	});
+
+	test("uses configured shortcut in startup notification", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { shortcut: "ctrl+alt+h" },
+		});
+		const { ctx, eventHandlers, sendMessage } = createHarness();
+		const handlers = eventHandlers.get("session_start") ?? [];
+
+		for (const handler of handlers) await handler({ reason: "startup" }, ctx);
+
+		expect(sendMessage).toHaveBeenCalledWith({
+			customType: "pi-hud-notification",
+			content: "Pi HUD loaded. Shortcut: ctrl+alt+h.",
+			display: true,
+		});
 	});
 
 	test("respects startup notification setting and CLI command guard", async () => {
@@ -313,7 +332,7 @@ describe("pi-hud extension", () => {
 			for (const handler of handlers) await handler({ reason: "startup" }, ctx);
 			expect(sendMessage).toHaveBeenCalledWith({
 				customType: "pi-hud-notification",
-				content: "/hud or ctrl+shift+h toggle to show or hide HUD",
+				content: "Pi HUD loaded. Shortcut: ctrl+shift+h.",
 				display: true,
 			});
 		} finally {
@@ -339,7 +358,7 @@ describe("pi-hud extension", () => {
 		expect(sendMessage).toHaveBeenCalledWith({
 			customType: "pi-hud-notification",
 			content: [
-				"/hud or ctrl+shift+h toggle to show or hide HUD",
+				"Pi HUD loaded. Shortcut: ctrl+shift+h.",
 				"",
 				"Latest release 0.3.1",
 				"abc1234 Add startup notification",
@@ -368,7 +387,7 @@ describe("pi-hud extension", () => {
 
 		expect(sendMessage).toHaveBeenCalledWith({
 			customType: "pi-hud-notification",
-			content: "/hud or ctrl+shift+h toggle to show or hide HUD",
+			content: "Pi HUD loaded. Shortcut: ctrl+shift+h.",
 			display: true,
 		});
 		expect(writeFileSync).not.toHaveBeenCalledWith(
