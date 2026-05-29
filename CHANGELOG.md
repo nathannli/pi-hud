@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2
+
+### Patch Changes
+
+- 9926e20: Avoid slash-command-like text in the startup HUD notification so automatic session messages are less likely to be interpreted as user prompts.
+
 ## 0.4.1
 
 ### Patch Changes

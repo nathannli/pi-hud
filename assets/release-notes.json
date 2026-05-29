@@ -1,35 +1,15 @@
 {
-	"version": "0.4.1",
-	"previousTag": "v-0.4.0-RELEASE",
-	"generatedAt": "2026-05-24T22:08:34.820Z",
+	"version": "0.4.2",
+	"previousTag": "v-0.4.1-RELEASE",
+	"generatedAt": "2026-05-29T08:13:48.866Z",
 	"commits": [
 		{
-			"hash": "72d955e",
-			"subject": "feat(hud): use portable default shortcut (#66)"
+			"hash": "1a5573e",
+			"subject": "Merge pull request #74 from ludevdot/fix/hud-startup-prompt-notification"
 		},
 		{
-			"hash": "dae3de2",
-			"subject": "refactor(hud): extract release notes helpers (#64)"
-		},
-		{
-			"hash": "ab7656b",
-			"subject": "refactor(hud): split component and shared types (#62)"
-		},
-		{
-			"hash": "aa21d3a",
-			"subject": "chore(deps-dev): bump vitest from 3.2.4 to 4.1.5 (#7)"
-		},
-		{
-			"hash": "0d77015",
-			"subject": "chore(deps-dev): bump typescript from 5.9.2 to 6.0.3 (#6)"
-		},
-		{
-			"hash": "628ea7d",
-			"subject": "chore(deps): bump actions/checkout from 5 to 6 (#4)"
-		},
-		{
-			"hash": "d6f61bd",
-			"subject": "chore(deps): bump stefanzweifel/git-auto-commit-action from 5 to 7 (#2)"
+			"hash": "9926e20",
+			"subject": "fix(hud): avoid prompt-like startup notification"
 		}
 	]
 }
