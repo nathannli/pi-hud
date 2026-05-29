@@ -17,7 +17,7 @@ Thanks for your interest in contributing to `pi-hud` ❤️
 Match the versions declared in `package.json`:
 
 - Node.js 22.19.0 or newer (`engines.node`)
-- pnpm 10.30.2 (`packageManager`)
+- pnpm 11.4.0 (`packageManager`)
 
 ### Install
 

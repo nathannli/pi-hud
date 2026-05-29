@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/ludevdot/pi-hud/issues"
   },
-  "packageManager": "pnpm@10.30.2",
+  "packageManager": "pnpm@11.4.0",
   "keywords": [
     "pi-package",
     "pi-extension",
