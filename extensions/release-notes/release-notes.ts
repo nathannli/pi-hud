@@ -19,7 +19,7 @@ export function formatStartupNotificationContent(
 	releaseNotes: ReleaseNotes | undefined,
 ): string {
 	const lines = [
-		`/hud or ${formatShortcut(settings.shortcut)} toggle to show or hide HUD`,
+		`Pi HUD loaded. Shortcut: ${formatShortcut(settings.shortcut)}.`,
 	];
 	if (!releaseNotes) return lines.join("\n");
 
