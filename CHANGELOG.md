@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.3
+
+### Patch Changes
+
+- 0fe7dbb: Show individual active subagents in the expanded HUD while keeping compact mode summary-only.
+- 17d2d65: Update the pinned package manager to pnpm 11.4.0, align CI, publish, and contributor setup instructions, preserve pnpm 11's release-age gate with explicit temporary exclusions for the already-reviewed Pi 0.77.0 refresh, and document approved dependency build scripts required by the locked install.
+- 77c859e: Render the startup notification through Pi's UI notification API instead of injecting a custom session message, preventing HUD startup text and release notes from entering agent prompt context.
+
 ## 0.4.2
 
 ### Patch Changes
