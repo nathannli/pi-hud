@@ -141,7 +141,7 @@ Defaults:
 
 Supported `position` values are `center`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, `top-center`, `bottom-center`, `left-center`, and `right-center`.
 
-`startupNotification` controls the startup message rendered when `pi-hud` loads in an interactive session. It defaults to `true`, skips `/reload`, and can be disabled when you want a quieter startup. When packaged release metadata is available, the startup notice includes the latest release commits once per version and records that marker in Pi's user state directory.
+`startupNotification` controls the UI-only startup notification shown when `pi-hud` loads in an interactive session. It defaults to `true`, skips `/reload`, and can be disabled when you want a quieter startup. The notice is rendered with Pi's notification UI instead of a session message, so it does not add HUD text to the agent prompt context. When packaged release metadata is available, the startup notice includes the latest release commits once per version and records that marker in Pi's user state directory.
 
 `visibility` controls optional HUD modules from the `/hud-settings` → `Modules visibility` toggle list. All visibility items default to `true`; set an item to `false` to hide it in expanded HUD and any compact equivalent. The toggle list includes `Default settings` to restore every configurable module to visible. Supported keys are `context`, `project` (project path + branches), `worktrees`, and `mcps`. `Subagents` is intentionally not toggleable and remains visible when applicable. After changing module visibility, run `/reload` for the change to take effect.
 

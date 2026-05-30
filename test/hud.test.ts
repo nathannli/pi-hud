@@ -256,23 +256,23 @@ describe("pi-hud extension", () => {
 		expect([...shortcuts.keys()].sort()).toEqual(["ctrl+h", "ctrl+shift+h"]);
 	});
 
-	test("notifies when an interactive session starts and skips reload", async () => {
-		const { ctx, eventHandlers, notify, sendMessage } = createHarness();
+	test("shows a UI-only notification when an interactive session starts and skips reload", async () => {
+		const { ctx, eventHandlers, notify, registerMessageRenderer, sendMessage } =
+			createHarness();
 		const handlers = eventHandlers.get("session_start") ?? [];
 
 		for (const handler of handlers) await handler({ reason: "startup" }, ctx);
-		expect(sendMessage).toHaveBeenCalledWith({
-			customType: "pi-hud-notification",
-			content: "Pi HUD loaded. Shortcut: ctrl+shift+h.",
-			display: true,
-		});
-		expect(String(sendMessage.mock.calls[0]?.[0]?.content)).not.toMatch(
-			/^\/[\w-]+/,
+		expect(notify).toHaveBeenCalledWith(
+			"Pi HUD loaded. Shortcut: ctrl+shift+h.",
+			"info",
 		);
-		expect(notify).not.toHaveBeenCalled();
+		expect(String(notify.mock.calls[0]?.[0])).not.toMatch(/^\/[\w-]+/);
+		expect(registerMessageRenderer).not.toHaveBeenCalled();
+		expect(sendMessage).not.toHaveBeenCalled();
 
-		sendMessage.mockClear();
+		notify.mockClear();
 		for (const handler of handlers) await handler({ reason: "reload" }, ctx);
+		expect(notify).not.toHaveBeenCalled();
 		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
@@ -280,26 +280,27 @@ describe("pi-hud extension", () => {
 		mockSettingsFile("/repo/project/.pi/settings.json", {
 			hud: { shortcut: "ctrl+alt+h" },
 		});
-		const { ctx, eventHandlers, sendMessage } = createHarness();
+		const { ctx, eventHandlers, notify, sendMessage } = createHarness();
 		const handlers = eventHandlers.get("session_start") ?? [];
 
 		for (const handler of handlers) await handler({ reason: "startup" }, ctx);
 
-		expect(sendMessage).toHaveBeenCalledWith({
-			customType: "pi-hud-notification",
-			content: "Pi HUD loaded. Shortcut: ctrl+alt+h.",
-			display: true,
-		});
+		expect(notify).toHaveBeenCalledWith(
+			"Pi HUD loaded. Shortcut: ctrl+alt+h.",
+			"info",
+		);
+		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
 	test("respects startup notification setting and CLI command guard", async () => {
 		mockSettingsFile("/repo/project/.pi/settings.json", {
 			hud: { startupNotification: false },
 		});
-		const { ctx, eventHandlers, sendMessage } = createHarness();
+		const { ctx, eventHandlers, notify, sendMessage } = createHarness();
 		const handlers = eventHandlers.get("session_start") ?? [];
 
 		for (const handler of handlers) await handler({ reason: "startup" }, ctx);
+		expect(notify).not.toHaveBeenCalled();
 		expect(sendMessage).not.toHaveBeenCalled();
 
 		fsMockState.settingsFiles.clear();
@@ -311,6 +312,7 @@ describe("pi-hud extension", () => {
 			for (const handler of cliHandlers) {
 				await handler({ reason: "startup" }, cliHarness.ctx);
 			}
+			expect(cliHarness.notify).not.toHaveBeenCalled();
 			expect(cliHarness.sendMessage).not.toHaveBeenCalled();
 		} finally {
 			process.argv = originalArgv;
@@ -327,14 +329,14 @@ describe("pi-hud extension", () => {
 			"/repo/pi-hud/extensions/hud.ts",
 		];
 		try {
-			const { ctx, eventHandlers, sendMessage } = createHarness();
+			const { ctx, eventHandlers, notify, sendMessage } = createHarness();
 			const handlers = eventHandlers.get("session_start") ?? [];
 			for (const handler of handlers) await handler({ reason: "startup" }, ctx);
-			expect(sendMessage).toHaveBeenCalledWith({
-				customType: "pi-hud-notification",
-				content: "Pi HUD loaded. Shortcut: ctrl+shift+h.",
-				display: true,
-			});
+			expect(notify).toHaveBeenCalledWith(
+				"Pi HUD loaded. Shortcut: ctrl+shift+h.",
+				"info",
+			);
+			expect(sendMessage).not.toHaveBeenCalled();
 		} finally {
 			process.argv = originalArgv;
 		}
@@ -350,22 +352,22 @@ describe("pi-hud extension", () => {
 				{ hash: "def5678", subject: "Render release notes" },
 			],
 		});
-		const { ctx, eventHandlers, sendMessage } = createHarness();
+		const { ctx, eventHandlers, notify, sendMessage } = createHarness();
 		const handlers = eventHandlers.get("session_start") ?? [];
 
 		for (const handler of handlers) await handler({ reason: "startup" }, ctx);
 
-		expect(sendMessage).toHaveBeenCalledWith({
-			customType: "pi-hud-notification",
-			content: [
+		expect(notify).toHaveBeenCalledWith(
+			[
 				"Pi HUD loaded. Shortcut: ctrl+shift+h.",
 				"",
 				"Latest release 0.3.1",
 				"abc1234 Add startup notification",
 				"def5678 Render release notes",
 			].join("\n"),
-			display: true,
-		});
+			"info",
+		);
+		expect(sendMessage).not.toHaveBeenCalled();
 		expect(writeFileSync).toHaveBeenCalledWith(
 			"/agent/state/pi-hud.json",
 			expect.stringContaining('"lastReleaseNotesShown": "0.3.1"'),
@@ -380,16 +382,16 @@ describe("pi-hud extension", () => {
 			commits: [{ hash: "abc1234", subject: "Add startup notification" }],
 		});
 		mockReleaseNotesState({ lastReleaseNotesShown: "0.3.1" });
-		const { ctx, eventHandlers, sendMessage } = createHarness();
+		const { ctx, eventHandlers, notify, sendMessage } = createHarness();
 		const handlers = eventHandlers.get("session_start") ?? [];
 
 		for (const handler of handlers) await handler({ reason: "startup" }, ctx);
 
-		expect(sendMessage).toHaveBeenCalledWith({
-			customType: "pi-hud-notification",
-			content: "Pi HUD loaded. Shortcut: ctrl+shift+h.",
-			display: true,
-		});
+		expect(notify).toHaveBeenCalledWith(
+			"Pi HUD loaded. Shortcut: ctrl+shift+h.",
+			"info",
+		);
+		expect(sendMessage).not.toHaveBeenCalled();
 		expect(writeFileSync).not.toHaveBeenCalledWith(
 			"/agent/state/pi-hud.json",
 			expect.any(String),
