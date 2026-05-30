@@ -123,7 +123,38 @@ export class HudComponent implements Component {
 			innerWidth,
 			`${this.theme.fg("warning", `${this.subagentStatus.running} run`)} · ${this.theme.fg("success", `${this.subagentStatus.completed} done`)} · ${this.theme.fg("error", `${this.subagentStatus.failed} err`)}`,
 		);
-		if (this.subagentStatus.activeLabel) {
+		if (this.subagentStatus.activeItems.length > 0) {
+			this.pushLine(
+				lines,
+				innerWidth,
+				this.theme.fg("accent", `[·] ${this.subagentStatus.running} running`),
+			);
+			for (const item of this.subagentStatus.activeItems.slice(0, 5)) {
+				const elapsed =
+					item.startedAt !== undefined
+						? ` · ◷ ${formatElapsed(item.startedAt)}`
+						: "";
+				const tokens =
+					typeof item.tokens === "number"
+						? ` · ${formatNumber(item.tokens)} ctx`
+						: "";
+				this.pushLine(
+					lines,
+					innerWidth,
+					this.theme.fg("dim", `  • ${item.label}${elapsed}${tokens}`),
+				);
+			}
+			if (this.subagentStatus.activeItems.length > 5) {
+				this.pushLine(
+					lines,
+					innerWidth,
+					this.theme.fg(
+						"dim",
+						`  +${this.subagentStatus.activeItems.length - 5} more`,
+					),
+				);
+			}
+		} else if (this.subagentStatus.activeLabel) {
 			this.pushLine(
 				lines,
 				innerWidth,

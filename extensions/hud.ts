@@ -10,6 +10,7 @@ import type {
 } from "@earendil-works/pi-tui";
 import { HudComponent } from "./components/hud-component.js";
 import {
+	getSubagentToolActiveItems,
 	getSubagentToolLabel,
 	parseSubagentMessage,
 	parseSubagentResultCounts,
@@ -49,6 +50,7 @@ export default function (pi: ExtensionAPI) {
 		failed: 0,
 		seen: false,
 		tokens: 0,
+		activeItems: [],
 	};
 	const subagentRuns = new Map<string, SubagentRunCounts>();
 	const activeSubagentTools = new Map<string, ActiveSubagentToolRun>();
@@ -85,7 +87,7 @@ export default function (pi: ExtensionAPI) {
 		(settings.autoCompactWhileStreaming && assistantTurnActive);
 
 	const recalculateSubagentStatus = () => {
-		subagentStatus.running = activeSubagentTools.size;
+		subagentStatus.running = 0;
 		subagentStatus.completed = completedSubagentToolRuns;
 		subagentStatus.failed = failedSubagentToolRuns;
 		subagentStatus.seen =
@@ -96,18 +98,22 @@ export default function (pi: ExtensionAPI) {
 		subagentStatus.activeLabel = undefined;
 		subagentStatus.activeStartedAt = undefined;
 		subagentStatus.tokens = 0;
+		subagentStatus.activeItems = [];
 
 		for (const counts of subagentRuns.values()) {
 			subagentStatus.running += counts.running;
 			subagentStatus.completed += counts.completed;
 			subagentStatus.failed += counts.failed;
 			subagentStatus.tokens += counts.tokens;
+			subagentStatus.activeItems.push(...counts.activeItems);
 			if (!subagentStatus.activeLabel && counts.activeLabel) {
 				subagentStatus.activeLabel = counts.activeLabel;
 				subagentStatus.activeStartedAt = counts.activeStartedAt;
 			}
 		}
 		for (const activeRun of activeSubagentTools.values()) {
+			subagentStatus.running += activeRun.activeItems.length;
+			subagentStatus.activeItems.push(...activeRun.activeItems);
 			if (!subagentStatus.activeLabel) {
 				subagentStatus.activeLabel = activeRun.label;
 				subagentStatus.activeStartedAt = activeRun.startedAt;
@@ -248,9 +254,15 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("tool_execution_start", (event) => {
 		if (event.toolName !== "subagent") return;
+		const startedAt = Date.now();
 		activeSubagentTools.set(event.toolCallId, {
 			label: getSubagentToolLabel(event.args),
-			startedAt: Date.now(),
+			startedAt,
+			activeItems: getSubagentToolActiveItems(
+				event.args,
+				event.toolCallId,
+				startedAt,
+			),
 		});
 		recalculateSubagentStatus();
 		requestHudRender();
@@ -258,13 +270,16 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("tool_execution_end", (event) => {
 		if (event.toolName !== "subagent") return;
-		if (activeSubagentTools.delete(event.toolCallId)) {
+		const activeRun = activeSubagentTools.get(event.toolCallId);
+		if (activeRun) {
+			activeSubagentTools.delete(event.toolCallId);
 			const resultCounts = parseSubagentResultCounts(event.result);
 			if (resultCounts) {
 				completedSubagentToolRuns += resultCounts.completed;
 				failedSubagentToolRuns += resultCounts.failed;
-			} else if (event.isError) failedSubagentToolRuns++;
-			else completedSubagentToolRuns++;
+			} else if (event.isError)
+				failedSubagentToolRuns += activeRun.activeItems.length;
+			else completedSubagentToolRuns += activeRun.activeItems.length;
 		}
 		recalculateSubagentStatus();
 		requestHudRender();

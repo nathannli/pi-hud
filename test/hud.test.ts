@@ -7,6 +7,7 @@ import {
 	createAssistantMessageEvent,
 	createHarness,
 	createSubagentMessageEvent,
+	createSubagentProgressMessageEvent,
 	expectCommandReturnsPromptly,
 	getOverlayOptions,
 } from "./helpers/hud-harness.js";
@@ -739,7 +740,8 @@ describe("pi-hud extension", () => {
 
 		rendered = capturedComponents[0]!.render(42).join("\n");
 		expect(rendered).toContain("1 run");
-		expect(rendered).toContain("[·] subagent");
+		expect(rendered).toContain("[·] 1 running");
+		expect(rendered).toContain("• subagent");
 
 		for (const handler of eventHandlers.get("message_end") ?? []) {
 			await handler(
@@ -752,6 +754,129 @@ describe("pi-hud extension", () => {
 		expect(rendered).toContain("0 run");
 		expect(rendered).toContain("1 done");
 		expect(rendered).toContain("0 err");
+	});
+
+	test("renders multiple active subagents as an expanded list", async () => {
+		vi.useFakeTimers();
+		try {
+			const { commands, ctx, eventHandlers, capturedComponents } =
+				createHarness();
+
+			await commands.get("hud")!.handler("", ctx);
+			for (const handler of eventHandlers.get("message_end") ?? []) {
+				await handler(
+					createSubagentProgressMessageEvent("subagent-run-1", [
+						{ status: "running", agent: "scout", durationMs: 3000 },
+						{ status: "running", agent: "reviewer", durationMs: 1000 },
+					]),
+					ctx,
+				);
+			}
+
+			const rendered = capturedComponents[0]!.render(42).join("\n");
+			expect(rendered).toContain("2 run");
+			expect(rendered).toContain("[·] 2 running");
+			expect(rendered).toContain("• scout");
+			expect(rendered).toContain("• reviewer");
+			expect(rendered).toContain("00:03");
+			expect(rendered).toContain("00:01");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	test("caps expanded active subagent list", async () => {
+		const { commands, ctx, eventHandlers, capturedComponents } =
+			createHarness();
+
+		await commands.get("hud")!.handler("", ctx);
+		for (const handler of eventHandlers.get("message_end") ?? []) {
+			await handler(
+				createSubagentProgressMessageEvent(
+					"subagent-run-1",
+					Array.from({ length: 6 }, (_, index) => ({
+						status: "running",
+						agent: `agent-${index + 1}`,
+					})),
+				),
+				ctx,
+			);
+		}
+
+		const rendered = capturedComponents[0]!.render(42).join("\n");
+		expect(rendered).toContain("6 run");
+		expect(rendered).toContain("• agent-1");
+		expect(rendered).toContain("• agent-5");
+		expect(rendered).not.toContain("• agent-6");
+		expect(rendered).toContain("+1 more");
+	});
+
+	test("renders batched subagent tool tasks as individual active rows", async () => {
+		const { commands, ctx, eventHandlers, capturedComponents } =
+			createHarness();
+
+		await commands.get("hud")!.handler("", ctx);
+		for (const handler of eventHandlers.get("tool_execution_start") ?? []) {
+			await handler(
+				{
+					type: "tool_execution_start",
+					toolName: "subagent",
+					toolCallId: "tool-1",
+					args: {
+						tasks: [
+							{ agent: "scout", task: "Map files" },
+							{ agent: "reviewer", task: "Review diff" },
+						],
+					},
+				},
+				ctx,
+			);
+		}
+
+		let rendered = capturedComponents[0]!.render(42).join("\n");
+		expect(rendered).toContain("2 run");
+		expect(rendered).toContain("[·] 2 running");
+		expect(rendered).toContain("• Map files");
+		expect(rendered).toContain("• Review diff");
+
+		for (const handler of eventHandlers.get("tool_execution_end") ?? []) {
+			await handler(
+				{
+					type: "tool_execution_end",
+					toolName: "subagent",
+					toolCallId: "tool-1",
+					isError: false,
+				},
+				ctx,
+			);
+		}
+
+		rendered = capturedComponents[0]!.render(42).join("\n");
+		expect(rendered).toContain("0 run");
+		expect(rendered).toContain("2 done");
+	});
+
+	test("keeps compact subagent status summary-only", async () => {
+		const { commands, shortcuts, ctx, eventHandlers, capturedComponents } =
+			createHarness();
+
+		await commands.get("hud")!.handler("", ctx);
+		for (const handler of eventHandlers.get("message_end") ?? []) {
+			await handler(
+				createSubagentProgressMessageEvent("subagent-run-1", [
+					{ status: "running", agent: "scout" },
+					{ status: "running", agent: "reviewer" },
+				]),
+				ctx,
+			);
+		}
+		await shortcuts.get("ctrl+h")!.handler(ctx);
+
+		const rendered = capturedComponents[0]!.render(26).join("\n");
+		expect(rendered).toContain("2 run");
+		expect(rendered).toContain("[·] scout");
+		expect(rendered).not.toContain("• scout");
+		expect(rendered).not.toContain("• reviewer");
 	});
 
 	test("renders live subagent tool execution with elapsed detail", async () => {
@@ -776,7 +901,8 @@ describe("pi-hud extension", () => {
 
 			let rendered = capturedComponents[0]!.render(42).join("\n");
 			expect(rendered).toContain("1 run");
-			expect(rendered).toContain("[·] Run for up to 10 seconds");
+			expect(rendered).toContain("[·] 1 running");
+			expect(rendered).toContain("• Run for up to 10 seconds");
 			expect(rendered).toContain("00:02");
 
 			for (const handler of eventHandlers.get("tool_execution_end") ?? []) {

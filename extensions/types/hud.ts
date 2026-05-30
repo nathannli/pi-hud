@@ -15,6 +15,14 @@ export interface AgentStatus {
 	completed: number;
 }
 
+export interface SubagentActiveItem {
+	id: string;
+	label: string;
+	startedAt?: number;
+	tokens?: number;
+	source: "message" | "tool";
+}
+
 export interface SubagentStatus {
 	running: number;
 	completed: number;
@@ -23,6 +31,7 @@ export interface SubagentStatus {
 	activeLabel?: string;
 	activeStartedAt?: number;
 	tokens: number;
+	activeItems: SubagentActiveItem[];
 }
 
 export interface SubagentRunCounts {
@@ -32,11 +41,13 @@ export interface SubagentRunCounts {
 	tokens: number;
 	activeLabel?: string;
 	activeStartedAt?: number;
+	activeItems: SubagentActiveItem[];
 }
 
 export interface ActiveSubagentToolRun {
 	label: string;
 	startedAt: number;
+	activeItems: SubagentActiveItem[];
 }
 
 export type HudVisibilityKey = "context" | "project" | "worktrees" | "mcps";

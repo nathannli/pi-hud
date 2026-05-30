@@ -252,6 +252,13 @@ export function createSubagentMessageEvent(
 	requestId: string,
 	status: "running" | "completed" | "failed",
 ): unknown {
+	return createSubagentProgressMessageEvent(requestId, [{ status }]);
+}
+
+export function createSubagentProgressMessageEvent(
+	requestId: string,
+	progress: Array<Record<string, unknown>>,
+): unknown {
 	return {
 		type: "message_end",
 		message: {
@@ -259,7 +266,7 @@ export function createSubagentMessageEvent(
 			customType: "subagent-slash-result",
 			details: {
 				requestId,
-				result: { details: { progress: [{ status }] } },
+				result: { details: { progress } },
 			},
 		},
 	};
