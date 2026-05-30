@@ -1,15 +1,43 @@
 {
-	"version": "0.4.2",
-	"previousTag": "v-0.4.1-RELEASE",
-	"generatedAt": "2026-05-29T08:13:48.866Z",
+	"version": "0.4.3",
+	"previousTag": "v-0.4.2-RELEASE",
+	"generatedAt": "2026-05-30T17:28:52.755Z",
 	"commits": [
 		{
-			"hash": "1a5573e",
-			"subject": "Merge pull request #74 from ludevdot/fix/hud-startup-prompt-notification"
+			"hash": "1e8f6d0",
+			"subject": "feat(hud): list active named subagents"
 		},
 		{
-			"hash": "9926e20",
-			"subject": "fix(hud): avoid prompt-like startup notification"
+			"hash": "0fe7dbb",
+			"subject": "feat(hud): list active subagents"
+		},
+		{
+			"hash": "0c05ba8",
+			"subject": "fix(hud): keep startup notification UI-only"
+		},
+		{
+			"hash": "77c859e",
+			"subject": "fix(hud): keep startup notification UI-only"
+		},
+		{
+			"hash": "80628cb",
+			"subject": "Merge pull request #79 from ludevdot/chore/update-pnpm-11"
+		},
+		{
+			"hash": "03cb3a1",
+			"subject": "chore(tooling): configure pnpm 11 policies"
+		},
+		{
+			"hash": "17d2d65",
+			"subject": "chore(tooling): update pnpm to 11.4.0"
+		},
+		{
+			"hash": "fdcca8b",
+			"subject": "Merge pull request #77 from ludevdot/chore/update-pi-deps-node-22"
+		},
+		{
+			"hash": "03e9ee9",
+			"subject": "chore(deps): update pi packages to 0.77.0"
 		}
 	]
 }
