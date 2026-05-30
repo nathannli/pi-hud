@@ -8,7 +8,6 @@ import type {
 	OverlayOptions,
 	TUI,
 } from "@earendil-works/pi-tui";
-import { Text } from "@earendil-works/pi-tui";
 import { HudComponent } from "./components/hud-component.js";
 import {
 	getSubagentToolLabel,
@@ -199,27 +198,16 @@ export default function (pi: ExtensionAPI) {
 		requestHudRender();
 	};
 
-	pi.registerMessageRenderer(
-		"pi-hud-notification",
-		(message, _options, theme) => {
-			const lines = String(message.content).split("\n");
-			const rendered = [theme.fg("warning", "[Pi-Hud notifications]")];
-			for (const line of lines) rendered.push(`  ${line}`);
-			return new Text(rendered.join("\n"), 0, 0);
-		},
-	);
-
 	const notifySessionStart = (event: unknown, ctx: ExtensionContext) => {
 		if (!ctx.hasUI || isCLICommand()) return;
 		const settings = currentHudSettings ?? readHudSettings(getProjectPath(ctx));
 		if (!settings.startupNotification) return;
 		if (getSessionStartReason(event) === "reload") return;
 		const releaseNotes = getUnseenReleaseNotes();
-		pi.sendMessage({
-			customType: "pi-hud-notification",
-			content: formatStartupNotificationContent(settings, releaseNotes),
-			display: true,
-		});
+		ctx.ui.notify(
+			formatStartupNotificationContent(settings, releaseNotes),
+			"info",
+		);
 		if (releaseNotes) markReleaseNotesShown(releaseNotes.version);
 	};
 

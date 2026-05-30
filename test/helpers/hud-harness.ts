@@ -32,6 +32,7 @@ interface HudHarness {
 	custom: ReturnType<typeof vi.fn>;
 	notify: ReturnType<typeof vi.fn>;
 	sendMessage: ReturnType<typeof vi.fn>;
+	registerMessageRenderer: ReturnType<typeof vi.fn>;
 	setStatus: ReturnType<typeof vi.fn>;
 	select: ReturnType<typeof vi.fn>;
 	input: ReturnType<typeof vi.fn>;
@@ -76,6 +77,7 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 
 	const notify = vi.fn();
 	const sendMessage = vi.fn();
+	const registerMessageRenderer = vi.fn();
 	const setStatus = vi.fn();
 	const selectChoices = [...(options.selectChoices ?? [])];
 	const inputValues = [...(options.inputValues ?? [])];
@@ -117,7 +119,7 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 		) => {
 			shortcuts.set(shortcut, shortcutOptions);
 		},
-		registerMessageRenderer: vi.fn(),
+		registerMessageRenderer,
 		sendMessage,
 		getSessionName: () => "Named session",
 		getAllTools: () =>
@@ -194,6 +196,7 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 		custom,
 		notify,
 		sendMessage,
+		registerMessageRenderer,
 		setStatus,
 		select,
 		input,
