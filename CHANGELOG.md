@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.4
+
+### Patch Changes
+
+- Update the packaged Pi HUD extension images.
+
 ## 0.4.3
 
 ### Patch Changes
