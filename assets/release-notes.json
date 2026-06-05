@@ -1,15 +1,47 @@
 {
-	"version": "0.4.4",
-	"previousTag": "v-0.4.3-RELEASE",
-	"generatedAt": "2026-06-03T20:20:43.383Z",
+	"version": "0.5.0",
+	"previousTag": "v-0.4.4-RELEASE",
+	"generatedAt": "2026-06-05T17:46:39.143Z",
 	"commits": [
 		{
-			"hash": "645b6ba",
-			"subject": "Merge pull request #87 from ludevdot/chore/update-extension-images"
+			"hash": "6f5630b",
+			"subject": "feat(hud): warn on high context usage"
 		},
 		{
-			"hash": "037925a",
-			"subject": "chore(assets): update extension images"
+			"hash": "9c27b9d",
+			"subject": "feat(hud): warn on high context usage"
+		},
+		{
+			"hash": "4f08590",
+			"subject": "Merge pull request #94 from ludevdot/feat/compact-project-line"
+		},
+		{
+			"hash": "0912b37",
+			"subject": "feat(hud): show project in compact view"
+		},
+		{
+			"hash": "19e9475",
+			"subject": "Merge pull request #92 from ludevdot/fix/mcp-hud-config-precedence"
+		},
+		{
+			"hash": "ee50de2",
+			"subject": "fix(hud): prefer active MCP config"
+		},
+		{
+			"hash": "7a1eef3",
+			"subject": "Merge pull request #88 from ludevdot/dependabot/npm_and_yarn/tsx-4.22.3"
+		},
+		{
+			"hash": "88b22b3",
+			"subject": "chore(deps-dev): bump tsx from 4.21.0 to 4.22.3"
+		},
+		{
+			"hash": "860646a",
+			"subject": "Merge pull request #68 from ludevdot/dependabot/npm_and_yarn/vitest-4.1.7"
+		},
+		{
+			"hash": "e04bc70",
+			"subject": "chore(deps-dev): bump vitest from 4.1.5 to 4.1.7"
 		}
 	]
 }

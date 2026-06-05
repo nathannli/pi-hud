@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+
+### Minor Changes
+
+- 9c27b9d: Color context usage percentages at higher thresholds and show an exclamation marker from 50% to 69% so long sessions surface early warning states in compact and expanded HUD views.
+- 0912b37: Show the current project folder as a green Project line in the compact HUD so multiple Pi HUD instances are easier to distinguish.
+
+### Patch Changes
+
+- Prefer Pi's active agent MCP config before legacy project-local MCP config paths so stale project MCP names do not appear in the HUD.
+
 ## 0.4.4
 
 ### Patch Changes
