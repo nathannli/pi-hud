@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import type { Component } from "@earendil-works/pi-tui";
+import { visibleWidth, type Component } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { readHudSettings } from "../extensions/settings/hud-settings.js";
 import {
@@ -46,7 +46,12 @@ vi.mock("node:fs", () => ({
 }));
 
 vi.mock("node:child_process", () => ({
-	spawnSync: vi.fn(() => ({ status: 0, stdout: "main\n" })),
+	spawnSync: vi.fn((_command, args) => {
+		if (Array.isArray(args) && args.includes("status")) {
+			return { status: 0, stdout: "" };
+		}
+		return { status: 0, stdout: "main\n" };
+	}),
 }));
 
 afterEach(() => {
@@ -55,7 +60,10 @@ afterEach(() => {
 	fsMockState.releaseNotesState = undefined;
 	delete process.env.PI_CODING_AGENT_DIR;
 	vi.mocked(spawnSync).mockImplementation(
-		() => ({ status: 0, stdout: "main\n" }) as never,
+		(_command, args) =>
+			(Array.isArray(args) && args.includes("status")
+				? { status: 0, stdout: "" }
+				: { status: 0, stdout: "main\n" }) as never,
 	);
 	vi.clearAllMocks();
 });
@@ -78,14 +86,24 @@ function hasInputHandler(
 	return typeof component?.handleInput === "function";
 }
 
+function unwrapBg(line: string): string {
+	return line
+		.replace(/^<bg:customMessageBg>/, "")
+		.replace(/<\/bg:customMessageBg>$/, "")
+		.replace(/<\/?(?:accent|warning|error|dim|bold)>/g, "");
+}
+
 describe("pi-hud extension", () => {
-	test("loads default visibility and safely merges supported keys only", () => {
+	test("loads default mode and visibility and safely merges supported keys only", () => {
 		process.env.PI_CODING_AGENT_DIR = "/agent";
-		expect(readHudSettings("/repo/project").visibility).toEqual({
-			context: true,
-			project: true,
-			worktrees: true,
-			mcps: true,
+		expect(readHudSettings("/repo/project")).toMatchObject({
+			mode: "overlay",
+			visibility: {
+				context: true,
+				project: true,
+				worktrees: true,
+				mcps: true,
+			},
 		});
 		mockSettingsFile("/agent/settings.json", {
 			hud: { visibility: { context: false, mcps: false } },
@@ -100,12 +118,26 @@ describe("pi-hud extension", () => {
 				},
 			},
 		});
-		expect(readHudSettings("/repo/project").visibility).toEqual({
-			context: true,
-			project: true,
-			worktrees: true,
-			mcps: false,
+		expect(readHudSettings("/repo/project")).toMatchObject({
+			mode: "overlay",
+			visibility: {
+				context: true,
+				project: true,
+				worktrees: true,
+				mcps: false,
+			},
 		});
+		mockSettingsFile("/agent/settings.json", {
+			hud: { mode: "footer" },
+		});
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "unsupported" },
+		});
+		expect(readHudSettings("/repo/project").mode).toBe("footer");
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "overlay" },
+		});
+		expect(readHudSettings("/repo/project").mode).toBe("overlay");
 	});
 
 	test("persists, reports, and validates HUD visibility arguments", async () => {
@@ -253,6 +285,7 @@ describe("pi-hud extension", () => {
 
 		expect(commands.has("hud")).toBe(true);
 		expect(commands.has("hud-settings")).toBe(true);
+		expect(commands.has("hud-mode")).toBe(true);
 		expect(commands.has("sidebar")).toBe(false);
 		expect(commands.has("session-sidebar")).toBe(false);
 		expect([...shortcuts.keys()].sort()).toEqual(["ctrl+h", "ctrl+shift+h"]);
@@ -366,6 +399,8 @@ describe("pi-hud extension", () => {
 				"Latest release 0.3.1",
 				"abc1234 Add startup notification",
 				"def5678 Render release notes",
+				"",
+				"New: Pi HUD can now replace the footer. Try /hud-mode footer.",
 			].join("\n"),
 			"info",
 		);
@@ -373,6 +408,11 @@ describe("pi-hud extension", () => {
 		expect(writeFileSync).toHaveBeenCalledWith(
 			"/agent/state/pi-hud.json",
 			expect.stringContaining('"lastReleaseNotesShown": "0.3.1"'),
+			"utf8",
+		);
+		expect(writeFileSync).toHaveBeenCalledWith(
+			"/agent/state/pi-hud.json",
+			expect.stringContaining('"footerModeTipShownVersion": "0.3.1"'),
 			"utf8",
 		);
 	});
@@ -383,7 +423,10 @@ describe("pi-hud extension", () => {
 			version: "0.3.1",
 			commits: [{ hash: "abc1234", subject: "Add startup notification" }],
 		});
-		mockReleaseNotesState({ lastReleaseNotesShown: "0.3.1" });
+		mockReleaseNotesState({
+			lastReleaseNotesShown: "0.3.1",
+			footerModeTipShownVersion: "0.3.1",
+		});
 		const { ctx, eventHandlers, notify, sendMessage } = createHarness();
 		const handlers = eventHandlers.get("session_start") ?? [];
 
@@ -397,6 +440,33 @@ describe("pi-hud extension", () => {
 		expect(writeFileSync).not.toHaveBeenCalledWith(
 			"/agent/state/pi-hud.json",
 			expect.any(String),
+			"utf8",
+		);
+	});
+
+	test("shows the footer mode tip when release notes were already seen", async () => {
+		process.env.PI_CODING_AGENT_DIR = "/agent";
+		mockReleaseNotes({
+			version: "0.3.1",
+			commits: [{ hash: "abc1234", subject: "Add startup notification" }],
+		});
+		mockReleaseNotesState({ lastReleaseNotesShown: "0.3.1" });
+		const { ctx, eventHandlers, notify } = createHarness();
+		const handlers = eventHandlers.get("session_start") ?? [];
+
+		for (const handler of handlers) await handler({ reason: "startup" }, ctx);
+
+		expect(notify).toHaveBeenCalledWith(
+			[
+				"Pi HUD loaded. Shortcut: ctrl+shift+h.",
+				"",
+				"New: Pi HUD can now replace the footer. Try /hud-mode footer.",
+			].join("\n"),
+			"info",
+		);
+		expect(writeFileSync).toHaveBeenCalledWith(
+			"/agent/state/pi-hud.json",
+			expect.stringContaining('"footerModeTipShownVersion": "0.3.1"'),
 			"utf8",
 		);
 	});
@@ -706,14 +776,246 @@ describe("pi-hud extension", () => {
 		expect(rendered).not.toContain("rag-mcp");
 	});
 
-	test("starts visible by default on session start", async () => {
-		const { eventHandlers, ctx, custom } = createHarness();
+	test("starts as overlay by default and leaves the built-in footer alone", async () => {
+		const { eventHandlers, ctx, custom, setFooter } = createHarness();
 
 		for (const handler of eventHandlers.get("session_start") ?? []) {
 			await handler({ type: "session_start" }, ctx);
 		}
 
 		expect(custom).toHaveBeenCalledTimes(1);
+		expect(setFooter).not.toHaveBeenCalled();
+	});
+
+	test("starts in footer mode without opening the overlay", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const { eventHandlers, ctx, custom, setFooter, capturedFooterComponents } =
+			createHarness({ showThemeColors: true, mcpAdapter: true });
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		expect(custom).not.toHaveBeenCalled();
+		expect(setFooter).toHaveBeenCalledTimes(1);
+		const rendered = capturedFooterComponents[0]!.render(120);
+		expect(rendered).toHaveLength(5);
+		expect(
+			rendered.every((line) => line.startsWith("<bg:customMessageBg>")),
+		).toBe(true);
+		expect(
+			new Set(rendered.map((line) => visibleWidth(unwrapBg(line)))),
+		).toEqual(new Set([120]));
+		const footerText = rendered.map(unwrapBg).join("\n");
+		expect(footerText).toContain("📁 Project  Project /repo/project 🟢 (main)");
+		expect(footerText).toContain(
+			"🧠 Context  12.0k tokens │ 🟢 6.0% used/200.0k ctx",
+		);
+		expect(footerText).toContain("Model Name");
+		expect(footerText).toContain("$0.01000 spent");
+		expect(footerText).toContain("MCP      2/2 servers");
+		expect(footerText).toContain("Worktree: No worktrees");
+		expect(footerText).toContain("/hud-mode to switch");
+		expect(footerText).toContain(
+			"🔁 Session  To resume this session: pi --session session-1234",
+		);
+	});
+
+	test("/hud-mode switches, toggles, persists, and restores footer immediately", async () => {
+		const { commands, ctx, custom, notify, setFooter, hideHandle } =
+			createHarness();
+		const hudMode = commands.get("hud-mode")!;
+
+		await hudMode.handler("footer", ctx);
+		expect(writeFileSync).toHaveBeenLastCalledWith(
+			"/repo/project/.pi/settings.json",
+			expect.stringContaining('"mode": "footer"'),
+			"utf8",
+		);
+		expect(setFooter).toHaveBeenCalledTimes(1);
+		expect(custom).not.toHaveBeenCalled();
+		expect(notify).toHaveBeenLastCalledWith("HUD mode set to footer.", "info");
+
+		await hudMode.handler("", ctx);
+		expect(writeFileSync).toHaveBeenLastCalledWith(
+			"/repo/project/.pi/settings.json",
+			expect.stringContaining('"mode": "overlay"'),
+			"utf8",
+		);
+		expect(setFooter).toHaveBeenLastCalledWith(undefined);
+		expect(custom).toHaveBeenCalledTimes(1);
+		expect(notify).toHaveBeenLastCalledWith("HUD mode set to overlay.", "info");
+
+		await hudMode.handler("footer", ctx);
+		expect(hideHandle).toHaveBeenCalledTimes(1);
+		expect(setFooter).toHaveBeenCalledTimes(3);
+
+		vi.mocked(writeFileSync).mockClear();
+		await hudMode.handler("invalid", ctx);
+		expect(writeFileSync).not.toHaveBeenCalled();
+		expect(notify).toHaveBeenLastCalledWith(
+			"Usage: /hud-mode [footer|overlay]",
+			"warning",
+		);
+	});
+
+	test("footer keeps non-MCP extension statuses and hides duplicate MCP status", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness({
+			extensionStatuses: new Map([
+				["lsp", "LSP Inactive"],
+				["mcp", "MCP: 0/2 servers"],
+			]),
+		});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const rendered = capturedFooterComponents[0]!.render(120).join("\n");
+		expect(rendered).toContain("Status: LSP Inactive");
+		expect(rendered).not.toContain("MCP: 0/2 servers");
+	});
+
+	test("footer shows the current path when linked worktrees exist", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		vi.mocked(spawnSync).mockImplementation((command, args) => {
+			if (
+				command === "git" &&
+				Array.isArray(args) &&
+				args.includes("worktree")
+			) {
+				return {
+					status: 0,
+					stdout: [
+						"worktree /repo/project",
+						"HEAD abc123",
+						"branch refs/heads/main",
+						"",
+						"worktree /repo/project-feature",
+						"HEAD def456",
+						"branch refs/heads/feature/footer",
+					].join("\n"),
+				} as never;
+			}
+			return (
+				Array.isArray(args) && args.includes("status")
+					? { status: 0, stdout: "" }
+					: { status: 0, stdout: "main\n" }
+			) as never;
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness();
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		expect(capturedFooterComponents[0]!.render(100).join("\n")).toContain(
+			"Worktree: /repo/project",
+		);
+	});
+
+	test("footer marks dirty and conflicted git branches with status icons", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		vi.mocked(spawnSync).mockImplementation(
+			(_command, args) =>
+				(Array.isArray(args) && args.includes("status")
+					? { status: 0, stdout: " M file.ts\n" }
+					: { status: 0, stdout: "main\n" }) as never,
+		);
+		const dirtyHarness = createHarness();
+
+		for (const handler of dirtyHarness.eventHandlers.get("session_start") ??
+			[]) {
+			await handler({ type: "session_start" }, dirtyHarness.ctx);
+		}
+
+		expect(
+			dirtyHarness.capturedFooterComponents[0]!.render(80).join("\n"),
+		).toContain("🟡 (main*)");
+
+		vi.mocked(spawnSync).mockImplementation(
+			(_command, args) =>
+				(Array.isArray(args) && args.includes("status")
+					? { status: 0, stdout: "UU file.ts\n" }
+					: { status: 0, stdout: "main\n" }) as never,
+		);
+		const conflictHarness = createHarness();
+
+		for (const handler of conflictHarness.eventHandlers.get("session_start") ??
+			[]) {
+			await handler({ type: "session_start" }, conflictHarness.ctx);
+		}
+
+		expect(
+			conflictHarness.capturedFooterComponents[0]!.render(80).join("\n"),
+		).toContain("🔴 (main!)");
+	});
+
+	test("footer context percentage uses warning and error styling", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const warningHarness = createHarness({
+			contextPercent: 66,
+			showThemeColors: true,
+		});
+		for (const handler of warningHarness.eventHandlers.get("session_start") ??
+			[]) {
+			await handler({ type: "session_start" }, warningHarness.ctx);
+		}
+		expect(
+			warningHarness.capturedFooterComponents[0]!.render(120).join("\n"),
+		).toContain("<warning>🟡 66.0%</warning>");
+
+		const highWarningHarness = createHarness({
+			contextPercent: 88,
+			showThemeColors: true,
+		});
+		for (const handler of highWarningHarness.eventHandlers.get(
+			"session_start",
+		) ?? []) {
+			await handler({ type: "session_start" }, highWarningHarness.ctx);
+		}
+		expect(
+			highWarningHarness.capturedFooterComponents[0]!.render(120).join("\n"),
+		).toContain("<warning><bold>🟡 88.0%</bold></warning>");
+
+		const errorHarness = createHarness({
+			contextPercent: 96,
+			showThemeColors: true,
+		});
+		for (const handler of errorHarness.eventHandlers.get("session_start") ??
+			[]) {
+			await handler({ type: "session_start" }, errorHarness.ctx);
+		}
+		expect(
+			errorHarness.capturedFooterComponents[0]!.render(120).join("\n"),
+		).toContain("<error><bold>🔴 96.0%</bold></error>");
+	});
+
+	test("footer mode restores Pi's default footer on shutdown", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const { eventHandlers, ctx, setFooter } = createHarness();
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+		for (const handler of eventHandlers.get("session_shutdown") ?? []) {
+			await handler({ type: "session_shutdown" }, ctx);
+		}
+
+		expect(setFooter).toHaveBeenLastCalledWith(undefined);
 	});
 
 	test("minimizes and expands with the configured minimize shortcut", async () => {

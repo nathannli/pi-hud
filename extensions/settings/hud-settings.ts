@@ -18,11 +18,13 @@ import {
 } from "@earendil-works/pi-tui";
 import {
 	DEFAULT_HUD_SETTINGS,
+	HUD_MODES,
 	HUD_VISIBILITY_KEYS,
 	HUD_VISIBILITY_LABELS,
 	VALID_POSITIONS,
 } from "../config/hud-settings.js";
 import type {
+	HudMode,
 	HudSettings,
 	HudVisibility,
 	HudVisibilityKey,
@@ -71,6 +73,7 @@ export async function handleHudSettingsCommand(
 	}
 
 	const choice = await ctx.ui.select("HUD settings", [
+		"mode",
 		"position",
 		"shortcut",
 		"minimizeShortcut",
@@ -85,6 +88,15 @@ export async function handleHudSettingsCommand(
 	if (!choice) return;
 	if (choice === "show current") {
 		ctx.ui.notify(formatHudSettings(settings), "info");
+		return;
+	}
+
+	if (choice === "mode") {
+		const mode = await ctx.ui.select("HUD mode", [...HUD_MODES]);
+		if (!mode) return;
+		const updated = { ...settings, mode: mode as HudMode };
+		writeProjectHudSettings(projectPath, updated);
+		ctx.ui.notify(`HUD mode set to ${mode}.`, "info");
 		return;
 	}
 
@@ -205,6 +217,7 @@ function normalizeHudSettings(
 	base: HudSettings,
 ): HudSettings {
 	return {
+		mode: normalizeHudMode(input.mode, base.mode),
 		position: normalizePosition(input.position, base.position),
 		shortcut:
 			typeof input.shortcut === "string"
@@ -251,6 +264,12 @@ function cloneHudSettings(settings: HudSettings): HudSettings {
 		margin: { ...settings.margin },
 		visibility: { ...settings.visibility },
 	};
+}
+
+function normalizeHudMode(value: unknown, fallback: HudMode): HudMode {
+	return typeof value === "string" && HUD_MODES.includes(value as HudMode)
+		? (value as HudMode)
+		: fallback;
 }
 
 function normalizeVisibility(
@@ -343,6 +362,14 @@ function updateHudSettingFromArgs(
 		};
 	}
 	if (value.length === 0) return undefined;
+	if (key === "mode") {
+		const mode = normalizeHudMode(value, settings.mode);
+		if (mode !== value) return undefined;
+		return {
+			settings: { ...settings, mode },
+			message: `HUD mode set to ${mode}.`,
+		};
+	}
 	if (key === "position") {
 		const position = normalizePosition(value, settings.position);
 		if (position !== value) return undefined;
@@ -525,7 +552,7 @@ function withReloadNotice(message: string): string {
 }
 
 function getHudSettingsUsage(): string {
-	return "Usage: /hud-settings position|shortcut|minimizeShortcut|autoCompactWhileStreaming|startupNotification|expandedWidth|compactWidth|minTerminalWidth <value> or visibility [context|project|worktrees|mcps <on|off>]";
+	return "Usage: /hud-settings mode|position|shortcut|minimizeShortcut|autoCompactWhileStreaming|startupNotification|expandedWidth|compactWidth|minTerminalWidth <value> or visibility [context|project|worktrees|mcps <on|off>]";
 }
 
 function parseBoolean(value: string): boolean | undefined {
@@ -536,7 +563,7 @@ function parseBoolean(value: string): boolean | undefined {
 	return undefined;
 }
 
-function writeProjectHudSettings(cwd: string, hud: HudSettings): void {
+export function writeProjectHudSettings(cwd: string, hud: HudSettings): void {
 	const path = join(cwd, ".pi", "settings.json");
 	let root: Record<string, unknown> = {};
 	if (existsSync(path)) {
@@ -554,6 +581,7 @@ function writeProjectHudSettings(cwd: string, hud: HudSettings): void {
 
 function serializeHudSettings(settings: HudSettings): Record<string, unknown> {
 	return {
+		mode: settings.mode,
 		position: settings.position,
 		shortcut: settings.shortcut,
 		minimizeShortcut: settings.minimizeShortcut,

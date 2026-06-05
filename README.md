@@ -8,17 +8,20 @@
 [![license](https://img.shields.io/npm/l/pi-hud?color=blue)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/ludevdot/pi-hud?style=flat&color=yellow)](https://github.com/ludevdot/pi-hud/stargazers)
 
-Persistent right-side HUD for [Pi](https://pi.dev), published as a Pi package at [pi.dev/packages/pi-hud](https://pi.dev/packages/pi-hud?name=hud).
+Persistent HUD for [Pi](https://pi.dev), published as a Pi package at [pi.dev/packages/pi-hud](https://pi.dev/packages/pi-hud?name=hud).
 
-It shows the current session, model/context usage, subagent activity, project path, and git branch without stealing focus from the editor.
+It can run as the default right-side overlay or as an opt-in footer replacement. It shows the current session, model/context usage, subagent activity, project path, git branch, worktrees, and MCP configuration without stealing focus from the editor.
 
 ![pi-hud session panel](assets/hud.png)
+
+![pi-hud footer mode](assets/hud-footer.svg)
 
 ## Features
 
 - Starts visible by default when the extension is installed.
 - Shows a startup notice with the loaded HUD entry, toggle shortcut, and once-per-version packaged release notes.
 - `/hud` toggle command.
+- `/hud-mode` command to switch between overlay and footer mode.
 - `/hud-settings` configuration command.
 - Default hide/show keyboard shortcut: `ctrl+shift+h`.
 - Default minimize/expand keyboard shortcut: `ctrl+h`.
@@ -29,9 +32,10 @@ It shows the current session, model/context usage, subagent activity, project pa
   - elapsed time;
   - token/context count when available.
 - Session context usage and cost.
-- Project path and current git branch.
+- Project path, current git branch, and git status indicators.
 - Registered git worktrees when the repository has more than one worktree.
 - Configured MCP server names when `pi-mcp-adapter` is installed.
+- Opt-in footer mode with compact multi-line status, full-line background styling, and emoji indicators for project, context, MCP, help, git status, and context pressure.
 
 ## Install
 
@@ -68,7 +72,14 @@ Use this quick path to confirm `pi-hud` is installed and responding:
    /hud
    ```
 
-4. Try one safe setting change:
+4. Try footer mode, then switch back if you prefer the overlay:
+
+   ```text
+   /hud-mode footer
+   /hud-mode overlay
+   ```
+
+5. Try one safe setting change:
 
    ```text
    /hud-settings position bottom-right
@@ -102,14 +113,15 @@ The HUD opens automatically on session start. Inside Pi, run:
 /hud
 ```
 
-Run `/hud` again, or press `ctrl+shift+h`, to hide or show it. Press `ctrl+h` to minimize or expand it.
+Run `/hud` again, or press `ctrl+shift+h`, to hide or show the overlay. Press `ctrl+h` to minimize or expand the overlay. To replace Pi's built-in footer with the HUD footer, run `/hud-mode footer`.
 
 ## Commands
 
-| Command         | Description                                              |
-| --------------- | -------------------------------------------------------- |
-| `/hud`          | Toggle the hud.                                          |
-| `/hud-settings` | Configure position, shortcuts, startup notification, auto-compact, sizing, and Modules visibility. |
+| Command | Description |
+| --- | --- |
+| `/hud` | Toggle the overlay HUD. |
+| `/hud-mode` | Toggle between `overlay` and `footer`, or set one explicitly with `/hud-mode footer` and `/hud-mode overlay`. |
+| `/hud-settings` | Configure mode, position, shortcuts, startup notification, auto-compact, sizing, and Modules visibility. |
 
 ## Settings
 
@@ -120,6 +132,7 @@ Defaults:
 ```json
 {
   "hud": {
+    "mode": "overlay",
     "position": "top-right",
     "shortcut": "ctrl+shift+h",
     "minimizeShortcut": "ctrl+h",
@@ -141,13 +154,18 @@ Defaults:
 
 Supported `position` values are `center`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, `top-center`, `bottom-center`, `left-center`, and `right-center`.
 
-`startupNotification` controls the UI-only startup notification shown when `pi-hud` loads in an interactive session. It defaults to `true`, skips `/reload`, and can be disabled when you want a quieter startup. The notice is rendered with Pi's notification UI instead of a session message, so it does not add HUD text to the agent prompt context. When packaged release metadata is available, the startup notice includes the latest release commits once per version and records that marker in Pi's user state directory.
+`mode` controls where Pi HUD renders. `overlay` is the default right-side HUD. `footer` replaces Pi's built-in footer with Pi HUD's compact multi-line footer. You can persist it in settings or switch immediately with `/hud-mode footer` and `/hud-mode overlay`.
+
+`startupNotification` controls the UI-only startup notification shown when `pi-hud` loads in an interactive session. It defaults to `true`, skips `/reload`, and can be disabled when you want a quieter startup. The notice is rendered with Pi's notification UI instead of a session message, so it does not add HUD text to the agent prompt context. When packaged release metadata is available, the startup notice includes the latest release commits once per version and records that marker in Pi's user state directory. The footer mode discovery tip is also shown once per packaged version and stored in the same state file.
 
 `visibility` controls optional HUD modules from the `/hud-settings` → `Modules visibility` toggle list. All visibility items default to `true`; set an item to `false` to hide it in expanded HUD and any compact equivalent. The toggle list includes `Default settings` to restore every configurable module to visible. Supported keys are `context`, `project` (project path + branches), `worktrees`, and `mcps`. `Subagents` is intentionally not toggleable and remains visible when applicable. After changing module visibility, run `/reload` for the change to take effect.
 
 Examples:
 
 ```text
+/hud-mode footer
+/hud-mode overlay
+/hud-settings mode footer
 /hud-settings position bottom-right
 /hud-settings shortcut ctrl+shift+h
 /hud-settings minimizeShortcut ctrl+h
@@ -156,6 +174,45 @@ Examples:
 /hud-settings visibility worktrees off
 /hud-settings visibility context on
 ```
+
+### Footer mode
+
+Footer mode is opt-in because it replaces Pi's built-in footer. Use it when you want a fixed, compact status surface instead of the floating overlay. It avoids visually covering session text and makes terminal selection cleaner, so you can copy visible content without accidentally copying Pi HUD's overlay text.
+
+```text
+/hud-mode footer   # switch immediately and persist footer mode
+/hud-mode overlay  # restore Pi's built-in footer and persist overlay mode
+/hud-mode          # toggle between the two modes
+```
+
+The footer renders five compact lines:
+
+```text
+▏ 📁 Project  Pi-hud /Users/ludev/projectes/pi-hud 🟢 (main)
+▏ 🧠 Context  12.0k tokens │ 🟢 6.0% used/200.0k ctx │ GPT-5.5 │ $0.01000 spent
+▏ 🔌 MCP      2/2 servers │ Worktree: No worktrees
+▏ ❔ Help     /hud-mode to switch │ Status: LSP Inactive
+▏ 🔁 Session  To resume this session: pi --session 019e9925-92bb-78d7-aa4a-44ef32c10fcc
+```
+
+Git status indicators:
+
+| Indicator | Meaning | Branch suffix |
+| --- | --- | --- |
+| `🟢` | Clean working tree | none |
+| `🟡` | Uncommitted changes | `*` |
+| `🔴` | Merge/conflict state | `!` |
+
+Context pressure uses the same thresholds as the overlay HUD:
+
+| Context used | Footer indicator |
+| --- | --- |
+| `<50%` | `🟢` accent |
+| `50–84%` | `🟡` warning |
+| `85–94%` | `🟡` bold warning |
+| `>=95%` | `🔴` bold error |
+
+Worktrees show `No worktrees` when Git only reports the current checkout. When linked worktrees exist, the footer shows the current worktree path. Footer mode also preserves non-duplicated extension statuses, such as LSP, but hides MCP status from the final line because Pi HUD already renders MCP in its own line. The final session line shows the exact `pi --session <id>` command to resume the current session later.
 
 ### Shortcut format
 
@@ -222,6 +279,18 @@ Use this when top-right content conflicts with the HUD.
 }
 ```
 
+#### Footer mode
+
+Use this when you want Pi HUD to live in the bottom footer instead of the overlay.
+
+```json
+{
+  "hud": {
+    "mode": "footer"
+  }
+}
+```
+
 #### No auto-compact
 
 Use this if layout changes during assistant turns are distracting. Manual minimize/expand still works with `minimizeShortcut`.
@@ -253,8 +322,10 @@ Shortcut changes require `/reload` because shortcuts are registered when the ext
 ## Notes
 
 - Configured MCP servers are shown only when Pi has [`pi-mcp-adapter`](https://pi.dev/packages/pi-mcp-adapter?name=pi-mcp-adap) installed; config files alone do not enable the section.
+- Footer mode uses the configured MCP server count in `N/N servers` form. It does not currently show live connected/failed/auth states.
+- Footer mode filters duplicate `MCP:` extension status text from the final status line because the footer already has a dedicated MCP line.
 - Subagent status is based on Pi extension events and `pi-subagents` tool/result shapes when available.
-- The HUD auto-compacts for the full assistant turn and expands when the turn ends, instead of changing state on each reasoning update.
+- The overlay auto-compacts for the full assistant turn and expands when the turn ends, instead of changing state on each reasoning update.
 - The overlay is hidden on narrow terminals under the configured `minTerminalWidth`.
 
 ## Known limitations

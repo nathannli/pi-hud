@@ -17,19 +17,27 @@ const releaseNotesPath = fileURLToPath(
 export function formatStartupNotificationContent(
 	settings: HudSettings,
 	releaseNotes: ReleaseNotes | undefined,
+	showFooterModeTip = false,
 ): string {
 	const lines = [
 		`Pi HUD loaded. Shortcut: ${formatShortcut(settings.shortcut)}.`,
 	];
-	if (!releaseNotes) return lines.join("\n");
-
-	lines.push("", `Latest release ${releaseNotes.version}`);
-	const commitsToShow = releaseNotes.commits.slice(0, 5);
-	for (const commit of commitsToShow) {
-		lines.push(`${commit.hash} ${commit.subject}`);
+	if (releaseNotes) {
+		lines.push("", `Latest release ${releaseNotes.version}`);
+		const commitsToShow = releaseNotes.commits.slice(0, 5);
+		for (const commit of commitsToShow) {
+			lines.push(`${commit.hash} ${commit.subject}`);
+		}
+		const hiddenCommitCount =
+			releaseNotes.commits.length - commitsToShow.length;
+		if (hiddenCommitCount > 0) lines.push(`… and ${hiddenCommitCount} more`);
 	}
-	const hiddenCommitCount = releaseNotes.commits.length - commitsToShow.length;
-	if (hiddenCommitCount > 0) lines.push(`… and ${hiddenCommitCount} more`);
+	if (showFooterModeTip) {
+		lines.push(
+			"",
+			"New: Pi HUD can now replace the footer. Try /hud-mode footer.",
+		);
+	}
 	return lines.join("\n");
 }
 
@@ -40,6 +48,15 @@ export function getUnseenReleaseNotes(): ReleaseNotes | undefined {
 	return state.lastReleaseNotesShown === releaseNotes.version
 		? undefined
 		: releaseNotes;
+}
+
+export function getUnseenFooterModeTipVersion(): string | undefined {
+	const releaseNotes = readReleaseNotes();
+	if (!releaseNotes) return undefined;
+	const state = readReleaseNotesState();
+	return state.footerModeTipShownVersion === releaseNotes.version
+		? undefined
+		: releaseNotes.version;
 }
 
 export function readReleaseNotes(): ReleaseNotes | undefined {
@@ -85,6 +102,10 @@ export function readReleaseNotesState(): ReleaseNotesState {
 				typeof parsed.lastReleaseNotesShown === "string"
 					? parsed.lastReleaseNotesShown
 					: undefined,
+			footerModeTipShownVersion:
+				typeof parsed.footerModeTipShownVersion === "string"
+					? parsed.footerModeTipShownVersion
+					: undefined,
 		};
 	} catch {
 		return {};
@@ -92,14 +113,43 @@ export function readReleaseNotesState(): ReleaseNotesState {
 }
 
 export function markReleaseNotesShown(version: string): void {
+	writeReleaseNotesState({ lastReleaseNotesShown: version });
+}
+
+export function markFooterModeTipShown(version: string): void {
+	writeReleaseNotesState({ footerModeTipShownVersion: version });
+}
+
+export function markStartupNotificationsShown(options: {
+	releaseNotesVersion?: string;
+	footerModeTipVersion?: string;
+}): void {
+	writeReleaseNotesState({
+		lastReleaseNotesShown: options.releaseNotesVersion,
+		footerModeTipShownVersion: options.footerModeTipVersion,
+	});
+}
+
+function writeReleaseNotesState(patch: ReleaseNotesState): void {
 	const path = getReleaseNotesStatePath();
-	const state = { ...readReleaseNotesState(), lastReleaseNotesShown: version };
+	const state = { ...readReleaseNotesState(), ...definedStateValues(patch) };
 	try {
 		mkdirSync(dirname(path), { recursive: true });
 		writeFileSync(path, `${JSON.stringify(state, null, "\t")}\n`, "utf8");
 	} catch {
 		// Startup notifications are best-effort; never block Pi startup on state.
 	}
+}
+
+function definedStateValues(state: ReleaseNotesState): ReleaseNotesState {
+	return {
+		...(state.lastReleaseNotesShown !== undefined
+			? { lastReleaseNotesShown: state.lastReleaseNotesShown }
+			: {}),
+		...(state.footerModeTipShownVersion !== undefined
+			? { footerModeTipShownVersion: state.footerModeTipShownVersion }
+			: {}),
+	};
 }
 
 export function getReleaseNotesStatePath(): string {

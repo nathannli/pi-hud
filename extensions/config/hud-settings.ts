@@ -1,5 +1,5 @@
 import type { OverlayAnchor } from "@earendil-works/pi-tui";
-import type { HudSettings, HudVisibilityKey } from "../types/hud.js";
+import type { HudMode, HudSettings, HudVisibilityKey } from "../types/hud.js";
 
 export const VALID_POSITIONS = [
 	"center",
@@ -12,6 +12,11 @@ export const VALID_POSITIONS = [
 	"left-center",
 	"right-center",
 ] as const satisfies readonly OverlayAnchor[];
+
+export const HUD_MODES = [
+	"overlay",
+	"footer",
+] as const satisfies readonly HudMode[];
 
 export const HUD_VISIBILITY_KEYS = [
 	"context",
@@ -35,6 +40,7 @@ export const HUD_VISIBILITY_LABELS = {
 } satisfies Record<HudVisibilityKey, string>;
 
 export const DEFAULT_HUD_SETTINGS: HudSettings = {
+	mode: "overlay",
 	position: "top-right",
 	shortcut: "ctrl+shift+h",
 	minimizeShortcut: "ctrl+h",

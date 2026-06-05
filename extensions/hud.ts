@@ -9,6 +9,7 @@ import type {
 	TUI,
 } from "@earendil-works/pi-tui";
 import { HudComponent } from "./components/hud-component.js";
+import { HudFooter } from "./components/hud-footer.js";
 import {
 	getSubagentToolActiveItems,
 	getSubagentToolLabel,
@@ -17,18 +18,21 @@ import {
 } from "./parsers/subagents.js";
 import {
 	formatStartupNotificationContent,
+	getUnseenFooterModeTipVersion,
 	getUnseenReleaseNotes,
-	markReleaseNotesShown,
+	markStartupNotificationsShown,
 } from "./release-notes/release-notes.js";
 import {
 	getProjectPath,
 	handleHudSettingsCommand,
 	readHudSettings,
 	toShortcutKey,
+	writeProjectHudSettings,
 } from "./settings/hud-settings.js";
 import type {
 	ActiveSubagentToolRun,
 	AgentStatus,
+	HudMode,
 	HudSettings,
 	SubagentRunCounts,
 	SubagentStatus,
@@ -38,6 +42,8 @@ export default function (pi: ExtensionAPI) {
 	let hudHandle: OverlayHandle | null = null;
 	let refreshTimer: ReturnType<typeof setInterval> | null = null;
 	let hudTui: TUI | null = null;
+	let footerTui: TUI | null = null;
+	let footerActive = false;
 	let generation = 0;
 	let opening = false;
 	let assistantTurnActive = false;
@@ -80,6 +86,7 @@ export default function (pi: ExtensionAPI) {
 
 	const requestHudRender = () => {
 		hudTui?.requestRender();
+		footerTui?.requestRender();
 	};
 
 	const isCompact = (settings: HudSettings) =>
@@ -140,10 +147,10 @@ export default function (pi: ExtensionAPI) {
 		}, 1000);
 	};
 
-	const showHud = (ctx: ExtensionContext) => {
+	const showHud = (ctx: ExtensionContext, settingsOverride?: HudSettings) => {
 		if (!ctx.hasUI || hudHandle !== null || opening) return;
 
-		const settings = readHudSettings(getProjectPath(ctx));
+		const settings = settingsOverride ?? readHudSettings(getProjectPath(ctx));
 		currentHudSettings = settings;
 		const currentGeneration = ++generation;
 		opening = true;
@@ -189,6 +196,34 @@ export default function (pi: ExtensionAPI) {
 		}
 	};
 
+	const showFooter = (ctx: ExtensionContext, settings: HudSettings) => {
+		if (!ctx.hasUI) return;
+		hideHud();
+		currentHudSettings = settings;
+		footerActive = true;
+		ctx.ui.setFooter((tui, theme, footerData) => {
+			footerTui = tui;
+			return new HudFooter(pi, ctx, tui, theme, footerData, subagentStatus);
+		});
+	};
+
+	const hideFooter = (ctx: ExtensionContext) => {
+		if (!ctx.hasUI || !footerActive) return;
+		ctx.ui.setFooter(undefined);
+		footerActive = false;
+		footerTui = null;
+	};
+
+	const applyHudMode = (ctx: ExtensionContext, settings: HudSettings) => {
+		currentHudSettings = settings;
+		if (settings.mode === "footer") {
+			showFooter(ctx, settings);
+			return;
+		}
+		hideFooter(ctx);
+		showHud(ctx, settings);
+	};
+
 	const toggleHud = (ctx: ExtensionContext) => {
 		if (!ctx.hasUI) return;
 		if (hudHandle !== null || opening) {
@@ -210,11 +245,21 @@ export default function (pi: ExtensionAPI) {
 		if (!settings.startupNotification) return;
 		if (getSessionStartReason(event) === "reload") return;
 		const releaseNotes = getUnseenReleaseNotes();
+		const footerModeTipVersion = getUnseenFooterModeTipVersion();
 		ctx.ui.notify(
-			formatStartupNotificationContent(settings, releaseNotes),
+			formatStartupNotificationContent(
+				settings,
+				releaseNotes,
+				footerModeTipVersion !== undefined,
+			),
 			"info",
 		);
-		if (releaseNotes) markReleaseNotesShown(releaseNotes.version);
+		if (releaseNotes || footerModeTipVersion) {
+			markStartupNotificationsShown({
+				releaseNotesVersion: releaseNotes?.version,
+				footerModeTipVersion,
+			});
+		}
 	};
 
 	pi.on("agent_start", () => {
@@ -286,12 +331,14 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", (event, ctx) => {
-		showHud(ctx);
+		const settings = readHudSettings(getProjectPath(ctx));
+		applyHudMode(ctx, settings);
 		notifySessionStart(event, ctx);
 	});
 
-	pi.on("session_shutdown", () => {
+	pi.on("session_shutdown", (_event, ctx) => {
 		hideHud();
+		if (ctx) hideFooter(ctx);
 		agentStatus.running = 0;
 		agentStatus.completed = 0;
 		assistantTurnActive = false;
@@ -317,6 +364,24 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
+	pi.registerCommand("hud-mode", {
+		description: "Switch Pi HUD between overlay and footer mode",
+		handler: async (args: string, ctx: ExtensionCommandContext) => {
+			const projectPath = getProjectPath(ctx);
+			const currentSettings =
+				currentHudSettings ?? readHudSettings(projectPath);
+			const mode = parseHudModeCommand(args, currentSettings.mode);
+			if (!mode) {
+				ctx.ui.notify(getHudModeUsage(), "warning");
+				return;
+			}
+			const settings = { ...currentSettings, mode };
+			writeProjectHudSettings(projectPath, settings);
+			applyHudMode(ctx, settings);
+			ctx.ui.notify(`HUD mode set to ${mode}.`, "info");
+		},
+	});
+
 	const startupSettings = readHudSettings(process.cwd());
 	const startupShortcut = toShortcutKey(startupSettings.shortcut);
 	if (startupShortcut) {
@@ -338,6 +403,21 @@ export default function (pi: ExtensionAPI) {
 			},
 		});
 	}
+}
+
+function parseHudModeCommand(
+	args: string,
+	currentMode: HudMode,
+): HudMode | undefined {
+	const trimmed = args.trim().toLowerCase();
+	if (trimmed.length === 0)
+		return currentMode === "footer" ? "overlay" : "footer";
+	if (trimmed === "footer" || trimmed === "overlay") return trimmed;
+	return undefined;
+}
+
+function getHudModeUsage(): string {
+	return "Usage: /hud-mode [footer|overlay]";
 }
 
 function isCLICommand(): boolean {
