@@ -184,6 +184,7 @@ describe("pi-hud extension", () => {
 			);
 		await shortcuts.get("ctrl+h")!.handler(ctx);
 		rendered = capturedComponents[0]!.render(26).join("\n");
+		expect(rendered).not.toContain("HUD /");
 		expect(rendered).not.toContain("6.0% ctx");
 		expect(rendered).toContain("1 run");
 		expect(rendered).toContain("[·] visible agent");
@@ -472,6 +473,7 @@ describe("pi-hud extension", () => {
 		expect(getOverlayOptions(capturedOptions[0]).width).toBe(26);
 		rendered = capturedComponents[0]!.render(26).join("\n");
 		expect(rendered).toContain("HUD");
+		expect(rendered).toContain("Project: Project");
 		expect(rendered).toContain("Model Name · 6.0% ctx");
 
 		for (const handler of eventHandlers.get("message_end") ?? []) {
@@ -498,6 +500,8 @@ describe("pi-hud extension", () => {
 		await shortcuts.get("ctrl+h")!.handler(ctx);
 		const rendered = capturedComponents[0]!.render(26).join("\n");
 
+		expect(rendered).toContain("HUD");
+		expect(rendered).toContain("Project: Project");
 		expect(rendered).toContain("6.0% ctx");
 		expect(rendered).not.toContain("Very Long Model Name For Header");
 	});

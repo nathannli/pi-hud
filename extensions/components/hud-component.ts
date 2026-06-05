@@ -6,6 +6,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
+import { basename } from "node:path";
 import { getGitBranch, getGitWorktrees } from "../git/git.js";
 import { getMcpAdapterInfo } from "../mcp/mcp-adapter.js";
 import type {
@@ -79,7 +80,17 @@ export class HudComponent implements Component {
 		);
 
 		if (this.isCompact()) {
+			const projectTitle = this.settings.visibility.project
+				? formatProjectTitle(projectPath)
+				: null;
 			this.pushTopBorder(lines, innerWidth, "HUD");
+			if (projectTitle) {
+				this.pushLine(
+					lines,
+					innerWidth,
+					`Project: ${this.theme.fg("success", projectTitle)}`,
+				);
+			}
 			if (this.settings.visibility.context) {
 				this.pushLine(
 					lines,
@@ -358,6 +369,12 @@ export class HudComponent implements Component {
 			this.theme.fg("border", "│") + content + this.theme.fg("border", "│"),
 		);
 	}
+}
+
+function formatProjectTitle(projectPath: string): string | null {
+	const folderName = basename(projectPath.trim());
+	if (!folderName) return null;
+	return `${folderName[0]?.toLocaleUpperCase() ?? ""}${folderName.slice(1)}`;
 }
 
 function formatHeaderSummary(
