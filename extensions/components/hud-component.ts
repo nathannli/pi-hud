@@ -72,11 +72,16 @@ export class HudComponent implements Component {
 		const contextLabel =
 			contextPercent === null
 				? "ctx unknown"
-				: `${contextPercent.toFixed(1)}% ctx`;
+				: formatContextUsageLabel(contextPercent, "ctx");
 		const headerSummary = formatHeaderSummary(
 			modelLabel,
 			contextLabel,
 			innerWidth,
+			{
+				formatModel: (value) => this.theme.fg("accent", value),
+				formatContext: (value) =>
+					formatContextUsage(this.theme, value, contextPercent),
+			},
 		);
 
 		if (this.isCompact()) {
@@ -92,11 +97,7 @@ export class HudComponent implements Component {
 				);
 			}
 			if (this.settings.visibility.context) {
-				this.pushLine(
-					lines,
-					innerWidth,
-					this.theme.fg("accent", headerSummary),
-				);
+				this.pushLine(lines, innerWidth, headerSummary);
 			}
 			this.pushLine(
 				lines,
@@ -116,7 +117,7 @@ export class HudComponent implements Component {
 
 		this.pushTopBorder(lines, innerWidth, "Pi HUD");
 		if (this.settings.visibility.context) {
-			this.pushLine(lines, innerWidth, this.theme.fg("accent", headerSummary));
+			this.pushLine(lines, innerWidth, headerSummary);
 		}
 		this.pushLine(lines, innerWidth, this.theme.fg("dim", sessionName));
 		this.pushLine(lines, innerWidth, this.theme.fg("dim", sessionId));
@@ -205,8 +206,12 @@ export class HudComponent implements Component {
 				lines,
 				innerWidth,
 				contextPercent === null
-					? "usage unknown"
-					: `${contextPercent.toFixed(1)}% used`,
+					? this.theme.fg("dim", "usage unknown")
+					: formatContextUsage(
+							this.theme,
+							formatContextUsageLabel(contextPercent, "used"),
+							contextPercent,
+						),
 			);
 			this.pushLine(lines, innerWidth, `$${stats.cost.toFixed(4)} spent`);
 			this.pushLine(
@@ -377,14 +382,45 @@ function formatProjectTitle(projectPath: string): string | null {
 	return `${folderName[0]?.toLocaleUpperCase() ?? ""}${folderName.slice(1)}`;
 }
 
+function formatContextUsageLabel(
+	contextPercent: number,
+	unit: "ctx" | "used",
+): string {
+	const warningMarker = contextPercent >= 50 && contextPercent < 70 ? " !" : "";
+	return `${contextPercent.toFixed(1)}% ${unit}${warningMarker}`;
+}
+
+function formatContextUsage(
+	theme: Theme,
+	text: string,
+	contextPercent: number | null,
+): string {
+	const emphasized = contextPercent !== null && contextPercent >= 85;
+	const content = emphasized ? theme.bold(text) : text;
+	return theme.fg(getContextUsageColor(contextPercent), content);
+}
+
+function getContextUsageColor(
+	contextPercent: number | null,
+): Parameters<Theme["fg"]>[0] {
+	if (contextPercent === null) return "dim";
+	if (contextPercent >= 95) return "error";
+	if (contextPercent >= 50) return "warning";
+	return "accent";
+}
+
 function formatHeaderSummary(
 	modelLabel: string,
 	contextLabel: string,
 	innerWidth: number,
+	formatters: {
+		formatModel: (value: string) => string;
+		formatContext: (value: string) => string;
+	},
 ): string {
 	const contentWidth = Math.max(1, innerWidth - 1);
 	const separator = " · ";
 	const maxModelWidth = contentWidth - separator.length - contextLabel.length;
-	if (maxModelWidth <= 0) return contextLabel;
-	return `${truncateToWidth(modelLabel, maxModelWidth, "…", false)}${separator}${contextLabel}`;
+	if (maxModelWidth <= 0) return formatters.formatContext(contextLabel);
+	return `${formatters.formatModel(truncateToWidth(modelLabel, maxModelWidth, "…", false))}${separator}${formatters.formatContext(contextLabel)}`;
 }
