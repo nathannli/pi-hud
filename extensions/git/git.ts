@@ -8,14 +8,20 @@ export interface GitWorktree {
 	current: boolean;
 }
 
+export type GitStatus = "clean" | "dirty" | "conflict";
+
 export function getGitBranch(cwd: string): string | null {
 	const gitPaths = findGitPaths(cwd);
 	if (!gitPaths) return null;
-	const result = spawnSync("git", ["--no-optional-locks", "symbolic-ref", "--quiet", "--short", "HEAD"], {
-		cwd: gitPaths.repoDir,
-		encoding: "utf8",
-		stdio: ["ignore", "pipe", "ignore"],
-	});
+	const result = spawnSync(
+		"git",
+		["--no-optional-locks", "symbolic-ref", "--quiet", "--short", "HEAD"],
+		{
+			cwd: gitPaths.repoDir,
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		},
+	);
 	const branch = result.status === 0 ? result.stdout.trim() : "";
 	return branch || null;
 }
@@ -23,16 +29,52 @@ export function getGitBranch(cwd: string): string | null {
 export function getGitWorktrees(cwd: string): GitWorktree[] {
 	const gitPaths = findGitPaths(cwd);
 	if (!gitPaths) return [];
-	const result = spawnSync("git", ["--no-optional-locks", "worktree", "list", "--porcelain"], {
-		cwd: gitPaths.repoDir,
-		encoding: "utf8",
-		stdio: ["ignore", "pipe", "ignore"],
-	});
+	const result = spawnSync(
+		"git",
+		["--no-optional-locks", "worktree", "list", "--porcelain"],
+		{
+			cwd: gitPaths.repoDir,
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		},
+	);
 	if (result.status !== 0) return [];
 	return parseGitWorktreeList(result.stdout, gitPaths.repoDir);
 }
 
-function parseGitWorktreeList(output: string, currentRepoDir: string): GitWorktree[] {
+export function getGitDirty(cwd: string): boolean {
+	return getGitStatus(cwd) !== "clean";
+}
+
+export function getGitStatus(cwd: string): GitStatus {
+	const gitPaths = findGitPaths(cwd);
+	if (!gitPaths) return "clean";
+	const result = spawnSync(
+		"git",
+		["--no-optional-locks", "status", "--porcelain"],
+		{
+			cwd: gitPaths.repoDir,
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		},
+	);
+	if (result.status !== 0) return "clean";
+	const statusLines = result.stdout
+		.split("\n")
+		.map((line) => line.slice(0, 2))
+		.filter((status) => status.trim().length > 0);
+	if (statusLines.some(isConflictStatus)) return "conflict";
+	return statusLines.length > 0 ? "dirty" : "clean";
+}
+
+function isConflictStatus(status: string): boolean {
+	return ["DD", "AU", "UD", "UA", "DU", "AA", "UU"].includes(status);
+}
+
+function parseGitWorktreeList(
+	output: string,
+	currentRepoDir: string,
+): GitWorktree[] {
 	return output
 		.trim()
 		.split(/\n\s*\n/)
@@ -42,7 +84,11 @@ function parseGitWorktreeList(output: string, currentRepoDir: string): GitWorktr
 			if (!path || !isNearCurrentRepo(path, currentRepoDir)) return null;
 			const branchRef = getPorcelainValue(lines, "branch");
 			const label = branchRef?.replace(/^refs\/heads\//, "") ?? "detached";
-			return { path, label, current: resolve(path) === resolve(currentRepoDir) };
+			return {
+				path,
+				label,
+				current: resolve(path) === resolve(currentRepoDir),
+			};
 		})
 		.filter((entry): entry is GitWorktree => entry !== null);
 }
@@ -57,7 +103,9 @@ function getPorcelainValue(lines: string[], key: string): string | null {
 	return line ? line.slice(prefix.length).trim() : null;
 }
 
-function findGitPaths(cwd: string): { repoDir: string; headPath: string } | null {
+function findGitPaths(
+	cwd: string,
+): { repoDir: string; headPath: string } | null {
 	let dir = cwd;
 	while (true) {
 		const gitPath = join(dir, ".git");

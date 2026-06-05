@@ -34,11 +34,13 @@ interface HudHarness {
 	sendMessage: ReturnType<typeof vi.fn>;
 	registerMessageRenderer: ReturnType<typeof vi.fn>;
 	setStatus: ReturnType<typeof vi.fn>;
+	setFooter: ReturnType<typeof vi.fn>;
 	select: ReturnType<typeof vi.fn>;
 	input: ReturnType<typeof vi.fn>;
 	requestRender: ReturnType<typeof vi.fn>;
 	hideHandle: ReturnType<typeof vi.fn>;
 	capturedComponents: Component[];
+	capturedFooterComponents: Component[];
 	capturedOptions: NonNullable<Parameters<ExtensionUIContext["custom"]>[1]>[];
 }
 
@@ -51,6 +53,7 @@ interface HarnessOptions {
 	showThemeColors?: boolean;
 	selectChoices?: Array<string | undefined>;
 	inputValues?: Array<string | undefined>;
+	extensionStatuses?: Map<string, string>;
 }
 
 export function createHarness(options: HarnessOptions = {}): HudHarness {
@@ -63,6 +66,7 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 	const requestRender = vi.fn();
 	const hideHandle = vi.fn();
 	const capturedComponents: Component[] = [];
+	const capturedFooterComponents: Component[] = [];
 	const capturedOptions: NonNullable<
 		Parameters<ExtensionUIContext["custom"]>[1]
 	>[] = [];
@@ -81,6 +85,20 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 	const sendMessage = vi.fn();
 	const registerMessageRenderer = vi.fn();
 	const setStatus = vi.fn();
+	const footerData = {
+		getGitBranch: () => "main",
+		getExtensionStatuses: () =>
+			options.extensionStatuses ?? new Map<string, string>(),
+		getAvailableProviderCount: () => 1,
+		onBranchChange: (_callback: () => void) => vi.fn(),
+	};
+	const setFooter = vi.fn(
+		(factory: Parameters<ExtensionUIContext["setFooter"]>[0]) => {
+			if (!factory) return;
+			const component = factory(fakeTui, fakeTheme as never, footerData);
+			capturedFooterComponents.push(component as Component);
+		},
+	);
 	const selectChoices = [...(options.selectChoices ?? [])];
 	const inputValues = [...(options.inputValues ?? [])];
 	const select = vi.fn(async () => selectChoices.shift());
@@ -168,6 +186,7 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 			custom,
 			notify,
 			setStatus,
+			setFooter,
 			select,
 			input,
 		} as unknown as ExtensionCommandContext["ui"],
@@ -200,11 +219,13 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 		sendMessage,
 		registerMessageRenderer,
 		setStatus,
+		setFooter,
 		select,
 		input,
 		requestRender,
 		hideHandle,
 		capturedComponents,
+		capturedFooterComponents,
 		capturedOptions,
 	};
 }

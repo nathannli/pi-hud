@@ -50,11 +50,14 @@ export interface ActiveSubagentToolRun {
 	activeItems: SubagentActiveItem[];
 }
 
+export type HudMode = "overlay" | "footer";
+
 export type HudVisibilityKey = "context" | "project" | "worktrees" | "mcps";
 
 export type HudVisibility = Record<HudVisibilityKey, boolean>;
 
 export interface HudSettings {
+	mode: HudMode;
 	position: OverlayAnchor;
 	shortcut: string;
 	minimizeShortcut: string;
@@ -76,4 +79,5 @@ export interface ReleaseNotes {
 
 export interface ReleaseNotesState {
 	lastReleaseNotesShown?: string;
+	footerModeTipShownVersion?: string;
 }
