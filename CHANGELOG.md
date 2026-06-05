@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+### Minor Changes
+
+- da404ca: Add opt-in footer mode with `/hud-mode`, compact footer rendering, git/context status indicators, session resume command, and README documentation.
+
 ## 0.5.0
 
 ### Minor Changes
