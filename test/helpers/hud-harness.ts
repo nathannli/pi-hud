@@ -47,6 +47,8 @@ interface HarnessOptions {
 	resolveCustom?: boolean;
 	mcpAdapter?: boolean;
 	modelName?: string;
+	contextPercent?: number;
+	showThemeColors?: boolean;
 	selectChoices?: Array<string | undefined>;
 	inputValues?: Array<string | undefined>;
 }
@@ -65,7 +67,7 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 		Parameters<ExtensionUIContext["custom"]>[1]
 	>[] = [];
 	const fakeTui = { requestRender } as unknown as TUI;
-	const fakeTheme = createTheme();
+	const fakeTheme = createTheme(options.showThemeColors ?? false);
 	const fakeHandle = {
 		hide: hideHandle,
 		setHidden: vi.fn(),
@@ -173,7 +175,7 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 		getContextUsage: () => ({
 			tokens: 12_000,
 			contextWindow: 200_000,
-			percent: 6,
+			percent: options.contextPercent ?? 6,
 		}),
 		sessionManager: {
 			getSessionName: () => undefined,
@@ -272,11 +274,13 @@ export function createSubagentProgressMessageEvent(
 	};
 }
 
-function createTheme() {
+function createTheme(showThemeColors: boolean) {
 	return {
-		fg: (_color: string, text: string) => text,
-		bg: (_color: string, text: string) => text,
-		bold: (text: string) => text,
+		fg: (color: string, text: string) =>
+			showThemeColors ? `<${color}>${text}</${color}>` : text,
+		bg: (color: string, text: string) =>
+			showThemeColors ? `<bg:${color}>${text}</bg:${color}>` : text,
+		bold: (text: string) => (showThemeColors ? `<bold>${text}</bold>` : text),
 	};
 }
 

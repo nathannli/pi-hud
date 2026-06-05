@@ -506,6 +506,51 @@ describe("pi-hud extension", () => {
 		expect(rendered).not.toContain("Very Long Model Name For Header");
 	});
 
+	test.each([
+		{ percent: 49, expected: "<accent>49.0% ctx</accent>" },
+		{ percent: 50, expected: "<warning>50.0% ctx !</warning>" },
+		{ percent: 69, expected: "<warning>69.0% ctx !</warning>" },
+		{ percent: 70, expected: "<warning>70.0% ctx</warning>" },
+		{ percent: 85, expected: "<warning><bold>85.0% ctx</bold></warning>" },
+		{ percent: 95, expected: "<error><bold>95.0% ctx</bold></error>" },
+	])("colors compact context usage at $percent percent", async ({
+		percent,
+		expected,
+	}) => {
+		const { commands, shortcuts, ctx, capturedComponents } = createHarness({
+			contextPercent: percent,
+			showThemeColors: true,
+		});
+
+		await commands.get("hud")!.handler("", ctx);
+		await shortcuts.get("ctrl+h")!.handler(ctx);
+		const rendered = capturedComponents[0]!.render(80).join("\n");
+
+		expect(rendered).toContain(expected);
+	});
+
+	test.each([
+		{ percent: 49, expected: "<accent>49.0% used</accent>" },
+		{ percent: 50, expected: "<warning>50.0% used !</warning>" },
+		{ percent: 69, expected: "<warning>69.0% used !</warning>" },
+		{ percent: 70, expected: "<warning>70.0% used</warning>" },
+		{ percent: 85, expected: "<warning><bold>85.0% used</bold></warning>" },
+		{ percent: 95, expected: "<error><bold>95.0% used</bold></error>" },
+	])("colors expanded context usage at $percent percent", async ({
+		percent,
+		expected,
+	}) => {
+		const { commands, ctx, capturedComponents } = createHarness({
+			contextPercent: percent,
+			showThemeColors: true,
+		});
+
+		await commands.get("hud")!.handler("", ctx);
+		const rendered = capturedComponents[0]!.render(80).join("\n");
+
+		expect(rendered).toContain(expected);
+	});
+
 	test("skips worktree lookup while compact", async () => {
 		const { commands, shortcuts, ctx, capturedComponents } = createHarness();
 
