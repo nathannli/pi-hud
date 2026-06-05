@@ -614,6 +614,49 @@ describe("pi-hud extension", () => {
 		expect(rendered).toContain("github");
 	});
 
+	test("prefers Pi agent MCP config over stale project MCP config", async () => {
+		process.env.PI_CODING_AGENT_DIR = "/agent";
+		mockSettingsFile("/agent/mcp.json", {
+			mcpServers: { context7: {}, engram: {} },
+		});
+		mockSettingsFile("/repo/project/.mcp.json", {
+			mcpServers: { codegraph: {}, playwright: {}, "rag-mcp": {} },
+		});
+		const { commands, ctx, capturedComponents } = createHarness({
+			mcpAdapter: true,
+		});
+
+		await expectCommandReturnsPromptly(commands.get("hud")!, ctx);
+
+		const rendered = capturedComponents[0]?.render(42).join("\n");
+		expect(rendered).toContain("Configured MCPs");
+		expect(rendered).toContain("context7");
+		expect(rendered).toContain("engram");
+		expect(rendered).not.toContain("codegraph");
+		expect(rendered).not.toContain("playwright");
+		expect(rendered).not.toContain("rag-mcp");
+	});
+
+	test("does not fall back to stale project MCP config when Pi agent config is empty", async () => {
+		process.env.PI_CODING_AGENT_DIR = "/agent";
+		mockSettingsFile("/agent/mcp.json", { mcpServers: {} });
+		mockSettingsFile("/repo/project/.mcp.json", {
+			mcpServers: { codegraph: {}, playwright: {}, "rag-mcp": {} },
+		});
+		const { commands, ctx, capturedComponents } = createHarness({
+			mcpAdapter: true,
+		});
+
+		await expectCommandReturnsPromptly(commands.get("hud")!, ctx);
+
+		const rendered = capturedComponents[0]?.render(42).join("\n");
+		expect(rendered).toContain("Configured MCPs");
+		expect(rendered).toContain("adapter installed");
+		expect(rendered).not.toContain("codegraph");
+		expect(rendered).not.toContain("playwright");
+		expect(rendered).not.toContain("rag-mcp");
+	});
+
 	test("starts visible by default on session start", async () => {
 		const { eventHandlers, ctx, custom } = createHarness();
 
