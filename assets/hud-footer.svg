@@ -1,13 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="206" viewBox="0 0 1200 206" role="img" aria-labelledby="title desc">
-  <title id="title">pi-hud footer mode</title>
-  <desc id="desc">Pi HUD footer mode showing project, context, MCP, worktree, help, and session resume lines.</desc>
-  <rect width="1200" height="206" fill="#1f1b2e"/>
-  <rect x="0" y="0" width="5" height="206" fill="#b9c2ff"/>
-  <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace, 'Apple Color Emoji', 'Segoe UI Emoji'" font-size="24" fill="#d7d4f8">
-    <text x="20" y="38">📁 Project  Pi-hud /Users/ludev/projectes/pi-hud 🟡 (feat/footer-mode*)</text>
-    <text x="20" y="76">🧠 Context  12.0k tokens │ <tspan fill="#f6c85f">🟡 66.0%</tspan> used/272.0k ctx │ GPT-5.5 │ $0.01000 spent</text>
-    <text x="20" y="114">🔌 MCP      2/2 servers │ Worktree: No worktrees</text>
-    <text x="20" y="152">❔ Help     /hud-mode to switch │ Status: <tspan fill="#ff6b6b">LSP Inactive</tspan></text>
-    <text x="20" y="190">🔁 Session  To resume this session: pi --session 019e9925-92bb-78d7-aa4a-44ef32c10fcc</text>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="206" aria-labelledby="title desc" viewBox="0 0 1200 206"><title>pi-hud footer mode</title><desc>Pi HUD footer mode showing project, context, MCP, worktree, help, and session resume lines.</desc><path fill="#1f1b2e" d="M0 0h1200v206H0z"/><path fill="#b9c2ff" d="M0 0h5v206H0z"/><g fill="#d7d4f8" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace, 'Apple Color Emoji', 'Segoe UI Emoji'" font-size="24"><text x="20" y="38">📁 Project  Pi-hud /Users/ludev/projectes/pi-hud 🟡 (feat/footer-mode*)</text><text x="20" y="76">🧠 Context  12.0k tokens │ <tspan fill="#f6c85f">🟡 66.0%</tspan> used/272.0k ctx │ GPT-5.5 │ $0.01000 spent</text><text x="20" y="114">🔌 MCP      2/2 servers │ Worktree: No worktrees</text><text x="20" y="152">❔ Help     /hud-mode to switch │ Status: <tspan fill="#ff6b6b">LSP Inactive</tspan></text><text x="20" y="190">🔁 Session  To resume this session: pi --session 019e9925-92bb-78d7-aa4a-44ef32c10fcc</text></g></svg>
