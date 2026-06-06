@@ -1,19 +1,55 @@
 {
-	"version": "0.6.0",
-	"previousTag": "v-0.5.0-RELEASE",
-	"generatedAt": "2026-06-05T20:33:05.558Z",
+	"version": "0.7.0",
+	"previousTag": "v-0.6.0-RELEASE",
+	"generatedAt": "2026-06-06T13:36:07.669Z",
 	"commits": [
 		{
-			"hash": "eac8245",
+			"hash": "7dfd99f",
+			"subject": "Merge pull request #112 from ludevdot/fix/hide-completed-sdd-footer-hints"
+		},
+		{
+			"hash": "214dd9b",
+			"subject": "fix: hide completed SDD footer hints"
+		},
+		{
+			"hash": "a6ff77d",
 			"subject": "chore: optimize SVG images"
 		},
 		{
-			"hash": "c9f5983",
-			"subject": "feat(hud): Add footer mode"
+			"hash": "cd545c0",
+			"subject": "feat: show SDD footer flow hints"
 		},
 		{
-			"hash": "da404ca",
-			"subject": "feat(hud): add footer mode"
+			"hash": "83ec257",
+			"subject": "feat: show SDD footer flow hints"
+		},
+		{
+			"hash": "fce74b0",
+			"subject": "feat(hud): show thinking status"
+		},
+		{
+			"hash": "efafb7c",
+			"subject": "Update git ignore"
+		},
+		{
+			"hash": "d13b3da",
+			"subject": "feat(hud): show thinking status"
+		},
+		{
+			"hash": "0f2bd48",
+			"subject": "feat(footer): add project-aware help hints"
+		},
+		{
+			"hash": "67249c1",
+			"subject": "feat(footer): add project-aware help hints"
+		},
+		{
+			"hash": "864947a",
+			"subject": "feat(footer): compact session resume line"
+		},
+		{
+			"hash": "5eeac4b",
+			"subject": "feat(footer): compact session resume line"
 		}
 	]
 }
