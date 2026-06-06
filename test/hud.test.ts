@@ -819,7 +819,7 @@ describe("pi-hud extension", () => {
 		expect(footerText).toContain("Worktree: No worktrees");
 		expect(footerText).toContain("/hud-mode to switch");
 		expect(footerText).toContain(
-			"🔁 Session  To resume this session: pi --session session-1234",
+			"🔁 Session  resume: pi --session session-1234",
 		);
 	});
 
@@ -859,6 +859,41 @@ describe("pi-hud extension", () => {
 			"Usage: /hud-mode [footer|overlay]",
 			"warning",
 		);
+	});
+
+	test("footer handles unknown session ids gracefully", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness({
+			sessionId: "unknown",
+		});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		expect(capturedFooterComponents[0]!.render(120).join("\n")).toContain(
+			"🔁 Session  resume unavailable",
+		);
+	});
+
+	test("footer preserves the full resume command for long session ids", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const sessionId = "019e9925-92bb-78d7-aa4a-44ef32c10fcc";
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness({
+			sessionId,
+		});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const rendered = capturedFooterComponents[0]!.render(160).join("\n");
+		expect(rendered).toContain(`🔁 Session  resume: pi --session ${sessionId}`);
+		expect(rendered).not.toContain("019e…0fcc");
 	});
 
 	test("footer keeps non-MCP extension statuses and hides duplicate MCP status", async () => {
