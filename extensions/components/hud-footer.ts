@@ -6,7 +6,12 @@ import type {
 	Theme,
 } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import {
+	getCapabilities,
+	hyperlink,
+	truncateToWidth,
+	visibleWidth,
+} from "@earendil-works/pi-tui";
 import { basename } from "node:path";
 import {
 	getGitBranch,
@@ -24,9 +29,13 @@ type FooterFactory = NonNullable<
 type FooterData = Parameters<FooterFactory>[2];
 type FooterTextStyle = {
 	text: string;
-	color: Parameters<Theme["fg"]>[0];
+	color?: Parameters<Theme["fg"]>[0];
 	bold?: boolean;
+	hyperlinkUrl?: string;
 };
+
+const PI_HUD_DOCS_LABEL = "🔗 docs";
+const PI_HUD_DOCS_URL = "https://github.com/ludevdot/pi-hud#readme";
 
 export class HudFooter implements Component {
 	private unsubscribeBranchChange?: () => void;
@@ -84,6 +93,7 @@ export class HudFooter implements Component {
 				? ` │ Status: ${extensionStatuses.join(" │ ")}`
 				: "";
 		const sessionId = getSessionId(this.ctx);
+		const docsHintStyle = formatDocsHintStyle();
 
 		return [
 			this.renderLine(
@@ -100,8 +110,9 @@ export class HudFooter implements Component {
 				safeWidth,
 			),
 			this.renderLine(
-				`▏ ❔ Help     /hud-mode to switch${statusSegment}`,
+				`▏ ❔ Help     /hud-mode │ /hud-settings │ ${PI_HUD_DOCS_LABEL}${statusSegment}`,
 				safeWidth,
+				docsHintStyle ? [docsHintStyle] : [],
 			),
 			this.renderLine(formatSessionResumeLine(sessionId), safeWidth),
 		];
@@ -119,6 +130,12 @@ export class HudFooter implements Component {
 			applyTextStyles(padded, styles, this.theme),
 		);
 	}
+}
+
+function formatDocsHintStyle(): FooterTextStyle | null {
+	return getCapabilities().hyperlinks
+		? { text: PI_HUD_DOCS_LABEL, hyperlinkUrl: PI_HUD_DOCS_URL }
+		: null;
 }
 
 function getSessionId(ctx: ExtensionContext): string {
@@ -218,7 +235,11 @@ function applyTextStyles(
 	return styles.reduce((styledText, style) => {
 		if (!styledText.includes(style.text)) return styledText;
 		const content = style.bold ? theme.bold(style.text) : style.text;
-		return styledText.replace(style.text, theme.fg(style.color, content));
+		const colored = style.color ? theme.fg(style.color, content) : content;
+		const linked = style.hyperlinkUrl
+			? hyperlink(colored, style.hyperlinkUrl)
+			: colored;
+		return styledText.replace(style.text, linked);
 	}, text);
 }
 

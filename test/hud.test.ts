@@ -1,6 +1,11 @@
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import { visibleWidth, type Component } from "@earendil-works/pi-tui";
+import {
+	resetCapabilitiesCache,
+	setCapabilities,
+	visibleWidth,
+	type Component,
+} from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { readHudSettings } from "../extensions/settings/hud-settings.js";
 import {
@@ -55,6 +60,7 @@ vi.mock("node:child_process", () => ({
 }));
 
 afterEach(() => {
+	resetCapabilitiesCache();
 	fsMockState.settingsFiles.clear();
 	fsMockState.releaseNotes = undefined;
 	fsMockState.releaseNotesState = undefined;
@@ -788,6 +794,7 @@ describe("pi-hud extension", () => {
 	});
 
 	test("starts in footer mode without opening the overlay", async () => {
+		setCapabilities({ images: null, trueColor: true, hyperlinks: false });
 		mockSettingsFile("/repo/project/.pi/settings.json", {
 			hud: { mode: "footer" },
 		});
@@ -817,9 +824,49 @@ describe("pi-hud extension", () => {
 		expect(footerText).toContain("$0.01000 spent");
 		expect(footerText).toContain("MCP      2/2 servers");
 		expect(footerText).toContain("Worktree: No worktrees");
-		expect(footerText).toContain("/hud-mode to switch");
+		expect(footerText).toContain("/hud-mode │ /hud-settings │ 🔗 docs");
+		expect(footerText).not.toContain("\u001B]8;;");
 		expect(footerText).toContain(
 			"🔁 Session  resume: pi --session session-1234",
+		);
+	});
+
+	test("footer links docs only when terminal hyperlinks are supported", async () => {
+		setCapabilities({ images: null, trueColor: true, hyperlinks: true });
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness();
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const footerText = capturedFooterComponents[0]!
+			.render(120)
+			.map(unwrapBg)
+			.join("\n");
+		expect(footerText).toContain("/hud-mode │ /hud-settings │ ");
+		expect(footerText).toContain(
+			"\u001B]8;;https://github.com/ludevdot/pi-hud#readme\u001B\\🔗 docs\u001B]8;;\u001B\\",
+		);
+	});
+
+	test("footer does not emit a partial docs hyperlink when truncated", async () => {
+		setCapabilities({ images: null, trueColor: true, hyperlinks: true });
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness();
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const helpLine = unwrapBg(capturedFooterComponents[0]!.render(44)[3]!);
+		expect(visibleWidth(helpLine)).toBe(44);
+		expect(helpLine).not.toContain(
+			"\u001B]8;;https://github.com/ludevdot/pi-hud#readme",
 		);
 	});
 
