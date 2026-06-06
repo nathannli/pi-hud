@@ -21,6 +21,7 @@ export function readOpenSpecStatus(projectPath: string): OpenSpecStatus | null {
 	const changeId = changeIds[0]!;
 	const changeRoot = join(changesRoot, changeId);
 	const taskCounts = readTaskCounts(join(changeRoot, "tasks.md"));
+	if (isCompletedVerifiedChange(changeRoot, taskCounts)) return null;
 	return {
 		changeId,
 		...taskCounts,
@@ -60,6 +61,18 @@ function readTaskCounts(
 	} catch {
 		return {};
 	}
+}
+
+function isCompletedVerifiedChange(
+	changeRoot: string,
+	tasks: Pick<OpenSpecStatus, "completedTasks" | "totalTasks">,
+): boolean {
+	return (
+		tasks.totalTasks !== undefined &&
+		tasks.totalTasks > 0 &&
+		tasks.completedTasks === tasks.totalTasks &&
+		existsSync(join(changeRoot, "verify-report.md"))
+	);
 }
 
 function determineNextAction(
