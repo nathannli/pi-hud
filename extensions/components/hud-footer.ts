@@ -20,6 +20,10 @@ import {
 	type GitStatus,
 } from "../git/git.js";
 import { getMcpAdapterInfo } from "../mcp/mcp-adapter.js";
+import {
+	readOpenSpecStatus,
+	type OpenSpecStatus,
+} from "../workflow/openspec-status.js";
 import type { SessionStats, SubagentStatus } from "../types/hud.js";
 import { formatNumber } from "../utils/formatters.js";
 import { getModelLabel, getThinkingLabel } from "../utils/model-status.js";
@@ -97,6 +101,15 @@ export class HudFooter implements Component {
 				: "";
 		const sessionId = getSessionId(this.ctx);
 		const docsHintStyle = formatDocsHintStyle();
+		const openSpecStatus = readOpenSpecStatus(projectPath);
+		const helpOrFlowLine = openSpecStatus
+			? formatFlowLine(
+					openSpecStatus,
+					PI_HUD_DOCS_LABEL,
+					statusSegment,
+					safeWidth,
+				)
+			: `▏ ❔ Help     /hud-mode │ /hud-settings │ ${PI_HUD_DOCS_LABEL}${statusSegment}`;
 
 		return [
 			this.renderLine(
@@ -113,7 +126,7 @@ export class HudFooter implements Component {
 				safeWidth,
 			),
 			this.renderLine(
-				`▏ ❔ Help     /hud-mode │ /hud-settings │ ${PI_HUD_DOCS_LABEL}${statusSegment}`,
+				helpOrFlowLine,
 				safeWidth,
 				docsHintStyle ? [docsHintStyle] : [],
 			),
@@ -139,6 +152,35 @@ function formatDocsHintStyle(): FooterTextStyle | null {
 	return getCapabilities().hyperlinks
 		? { text: PI_HUD_DOCS_LABEL, hyperlinkUrl: PI_HUD_DOCS_URL }
 		: null;
+}
+
+function formatFlowLine(
+	status: OpenSpecStatus,
+	docsLabel: string,
+	statusSegment: string,
+	width: number,
+): string {
+	const suffix = ` │ ${docsLabel}${statusSegment}`;
+	const prefix = "▏ 🧭 Flow     ";
+	const available = Math.max(
+		1,
+		width - visibleWidth(prefix) - visibleWidth(suffix),
+	);
+	return `${prefix}${formatOpenSpecSegment(status, available)}${suffix}`;
+}
+
+function formatOpenSpecSegment(status: OpenSpecStatus, width: number): string {
+	const taskSegment =
+		status.completedTasks !== undefined && status.totalTasks !== undefined
+			? ` · tasks ${status.completedTasks}/${status.totalTasks}`
+			: "";
+	const full = `📐 SDD ${status.changeId}${taskSegment} · next: ${status.nextAction}`;
+	if (visibleWidth(full) <= width) return full;
+
+	const medium = `📐 SDD ${status.changeId} · ${status.nextAction}`;
+	if (visibleWidth(medium) <= width) return medium;
+
+	return `📐 SDD · ${status.nextAction}`;
 }
 
 function getSessionId(ctx: ExtensionContext): string {
