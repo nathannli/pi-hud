@@ -103,10 +103,7 @@ export class HudFooter implements Component {
 				`▏ ❔ Help     /hud-mode to switch${statusSegment}`,
 				safeWidth,
 			),
-			this.renderLine(
-				`▏ 🔁 Session  To resume this session: pi --session ${sessionId}`,
-				safeWidth,
-			),
+			this.renderLine(formatSessionResumeLine(sessionId), safeWidth),
 		];
 	}
 
@@ -129,6 +126,13 @@ function getSessionId(ctx: ExtensionContext): string {
 		(ctx.sessionManager as { getSessionId?: () => string }).getSessionId?.() ??
 		"unknown"
 	);
+}
+
+function formatSessionResumeLine(sessionId: string): string {
+	if (sessionId === "unknown") {
+		return "▏ 🔁 Session  resume unavailable";
+	}
+	return `▏ 🔁 Session  resume: pi --session ${sessionId}`;
 }
 
 function computeStats(ctx: ExtensionContext): SessionStats {

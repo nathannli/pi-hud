@@ -54,6 +54,7 @@ interface HarnessOptions {
 	selectChoices?: Array<string | undefined>;
 	inputValues?: Array<string | undefined>;
 	extensionStatuses?: Map<string, string>;
+	sessionId?: string;
 }
 
 export function createHarness(options: HarnessOptions = {}): HudHarness {
@@ -198,7 +199,7 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 		}),
 		sessionManager: {
 			getSessionName: () => undefined,
-			getSessionId: () => "session-1234",
+			getSessionId: () => options.sessionId ?? "session-1234",
 			getCwd: () => "/repo/project",
 			getBranch: () => [{ type: "message", message: assistantMessage }],
 		} as unknown as ExtensionCommandContext["sessionManager"],
