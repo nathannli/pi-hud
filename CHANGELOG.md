@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0
+
+### Minor Changes
+
+- Add richer footer mode status with thinking level, compact session resume, project-aware help/SDD Flow hints, refreshed footer screenshot, and hide completed verified SDD changes from active Flow hints.
+
 ## 0.6.0
 
 ### Minor Changes
