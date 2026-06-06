@@ -514,6 +514,7 @@ describe("pi-hud extension", () => {
 		const rendered = capturedComponents[0]?.render(42).join("\n");
 		expect(rendered).toContain("12.0k tokens");
 		expect(rendered).toContain("6.0% used");
+		expect(rendered).toContain("thinking: medium");
 		expect(rendered).toContain("branch main");
 		expect(rendered).not.toContain("Git worktrees");
 		expect(rendered).not.toContain("MCP");
@@ -821,6 +822,7 @@ describe("pi-hud extension", () => {
 			"🧠 Context  12.0k tokens │ 🟢 6.0% used/200.0k ctx",
 		);
 		expect(footerText).toContain("Model Name");
+		expect(footerText).toContain("thinking: medium");
 		expect(footerText).toContain("$0.01000 spent");
 		expect(footerText).toContain("MCP      2/2 servers");
 		expect(footerText).toContain("Worktree: No worktrees");
@@ -829,6 +831,43 @@ describe("pi-hud extension", () => {
 		expect(footerText).toContain(
 			"🔁 Session  resume: pi --session session-1234",
 		);
+	});
+
+	test("footer omits thinking level for non-reasoning models", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness({
+			modelReasoning: false,
+			thinkingLevel: "medium",
+		});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const footerText = capturedFooterComponents[0]!
+			.render(120)
+			.map(unwrapBg)
+			.join("\n");
+		expect(footerText).toContain("Model Name");
+		expect(footerText).not.toContain("thinking:");
+	});
+
+	test("rerenders when model or thinking level changes", async () => {
+		const { commands, ctx, eventHandlers, requestRender } = createHarness();
+
+		await commands.get("hud")!.handler("", ctx);
+		requestRender.mockClear();
+
+		for (const handler of eventHandlers.get("model_select") ?? []) {
+			await handler({ type: "model_select" }, ctx);
+		}
+		for (const handler of eventHandlers.get("thinking_level_select") ?? []) {
+			await handler({ type: "thinking_level_select" }, ctx);
+		}
+
+		expect(requestRender).toHaveBeenCalledTimes(2);
 	});
 
 	test("footer links docs only when terminal hyperlinks are supported", async () => {

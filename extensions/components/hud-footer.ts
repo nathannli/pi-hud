@@ -22,6 +22,7 @@ import {
 import { getMcpAdapterInfo } from "../mcp/mcp-adapter.js";
 import type { SessionStats, SubagentStatus } from "../types/hud.js";
 import { formatNumber } from "../utils/formatters.js";
+import { getModelLabel, getThinkingLabel } from "../utils/model-status.js";
 
 type FooterFactory = NonNullable<
 	Parameters<ExtensionUIContext["setFooter"]>[0]
@@ -78,7 +79,9 @@ export class HudFooter implements Component {
 				? (contextTokens / contextWindow) * 100
 				: null);
 		const contextPercentSegment = formatContextPercentSegment(contextPercent);
-		const modelLabel = this.ctx.model?.name ?? this.ctx.model?.id ?? "No model";
+		const modelLabel = getModelLabel(this.ctx.model);
+		const thinkingLabel = getThinkingLabel(this.pi, this.ctx.model);
+		const thinkingSegment = thinkingLabel ? ` │ ${thinkingLabel}` : "";
 		const mcpAdapter = getMcpAdapterInfo(this.pi, projectPath);
 		const mcpLabel = formatMcpCount(mcpAdapter);
 		const worktree = getCurrentWorktreePath(projectPath);
@@ -101,7 +104,7 @@ export class HudFooter implements Component {
 				safeWidth,
 			),
 			this.renderLine(
-				`▏ 🧠 Context  ${formatContextTokens(contextTokens)} tokens │ ${contextPercentSegment.text} used/${formatNumber(contextWindow)} ctx │ ${modelLabel} │ $${stats.cost.toFixed(5)} spent${subagentSegment}`,
+				`▏ 🧠 Context  ${formatContextTokens(contextTokens)} tokens │ ${contextPercentSegment.text} used/${formatNumber(contextWindow)} ctx │ ${modelLabel}${thinkingSegment} │ $${stats.cost.toFixed(5)} spent${subagentSegment}`,
 				safeWidth,
 				[contextPercentSegment],
 			),

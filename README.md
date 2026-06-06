@@ -31,7 +31,7 @@ It can run as the default right-side overlay or as an opt-in footer replacement.
   - active task label;
   - elapsed time;
   - token/context count when available.
-- Session context usage and cost.
+- Session context usage, cost, active model, and reasoning/thinking level when the selected model supports it.
 - Project path, current git branch, and git status indicators.
 - Registered git worktrees when the repository has more than one worktree.
 - Configured MCP server names when `pi-mcp-adapter` is installed.
@@ -189,7 +189,7 @@ The footer renders five compact lines:
 
 ```text
 ▏ 📁 Project  Pi-hud /Users/ludev/projectes/pi-hud 🟢 (main)
-▏ 🧠 Context  12.0k tokens │ 🟢 6.0% used/200.0k ctx │ GPT-5.5 │ $0.01000 spent
+▏ 🧠 Context  12.0k tokens │ 🟢 6.0% used/200.0k ctx │ Claude Sonnet │ thinking: medium │ $0.01000 spent
 ▏ 🔌 MCP      2/2 servers │ Worktree: No worktrees
 ▏ ❔ Help     /hud-mode │ /hud-settings │ 🔗 docs │ Status: LSP Inactive
 ▏ 🔁 Session  resume: pi --session 019e9925-92bb-78d7-aa4a-44ef32c10fcc
@@ -202,6 +202,8 @@ Git status indicators:
 | `🟢` | Clean working tree | none |
 | `🟡` | Uncommitted changes | `*` |
 | `🔴` | Merge/conflict state | `!` |
+
+The context line includes the current model. If the selected model supports reasoning, it also shows the active Pi thinking level such as `thinking: medium`; non-reasoning models omit that segment.
 
 Context pressure uses the same thresholds as the overlay HUD:
 
@@ -326,6 +328,7 @@ Shortcut changes require `/reload` because shortcuts are registered when the ext
 - Footer mode filters duplicate `MCP:` extension status text from the final status line because the footer already has a dedicated MCP line.
 - Subagent status is based on Pi extension events and `pi-subagents` tool/result shapes when available.
 - The overlay auto-compacts for the full assistant turn and expands when the turn ends, instead of changing state on each reasoning update.
+- Model and thinking-level changes trigger a HUD re-render so footer and overlay context status stay current.
 - The overlay is hidden on narrow terminals under the configured `minTerminalWidth`.
 
 ## Known limitations

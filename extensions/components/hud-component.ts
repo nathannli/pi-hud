@@ -19,6 +19,7 @@ import {
 	formatNumber,
 	formatShortcut,
 } from "../utils/formatters.js";
+import { getModelLabel, getThinkingLabel } from "../utils/model-status.js";
 
 export class HudComponent implements Component {
 	constructor(
@@ -68,7 +69,8 @@ export class HudComponent implements Component {
 			(contextWindow > 0 ? (contextTokens / contextWindow) * 100 : null);
 		const innerWidth = Math.max(1, width - 2);
 		const lines: string[] = [];
-		const modelLabel = model?.name ?? model?.id ?? "No model";
+		const modelLabel = getModelLabel(model);
+		const thinkingLabel = getThinkingLabel(this.pi, model);
 		const contextLabel =
 			contextPercent === null
 				? "ctx unknown"
@@ -213,6 +215,9 @@ export class HudComponent implements Component {
 							contextPercent,
 						),
 			);
+			if (thinkingLabel) {
+				this.pushLine(lines, innerWidth, this.theme.fg("dim", thinkingLabel));
+			}
 			this.pushLine(lines, innerWidth, `$${stats.cost.toFixed(4)} spent`);
 			this.pushLine(
 				lines,
