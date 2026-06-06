@@ -55,6 +55,8 @@ interface HarnessOptions {
 	inputValues?: Array<string | undefined>;
 	extensionStatuses?: Map<string, string>;
 	sessionId?: string;
+	modelReasoning?: boolean;
+	thinkingLevel?: string;
 }
 
 export function createHarness(options: HarnessOptions = {}): HudHarness {
@@ -164,6 +166,7 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 						},
 					]
 				: [],
+		getThinkingLevel: () => options.thinkingLevel ?? "medium",
 	} as unknown as ExtensionAPI;
 
 	hudExtension(api);
@@ -206,6 +209,7 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 		model: {
 			id: "model-id",
 			name: options.modelName ?? "Model Name",
+			reasoning: options.modelReasoning ?? true,
 			contextWindow: 200_000,
 		},
 	} as unknown as ExtensionCommandContext;

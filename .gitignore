@@ -8,4 +8,5 @@ coverage/
 # Local Pi runtime state
 .atl/
 /.pi-lens/
+/.codegraph/
 /context.md

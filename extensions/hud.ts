@@ -285,6 +285,14 @@ export default function (pi: ExtensionAPI) {
 		requestHudRender();
 	});
 
+	pi.on("model_select", () => {
+		requestHudRender();
+	});
+
+	pi.on("thinking_level_select", () => {
+		requestHudRender();
+	});
+
 	pi.on("message_start", (event) => {
 		if (updateSubagentStatusFromMessage(event.message)) requestHudRender();
 	});
