@@ -142,6 +142,13 @@ function mockOpenSpecArchiveChange(changeId: string): void {
 	fsMockState.virtualFiles.set(`${openspecRoot}/config.yaml`, "version: 1\n");
 }
 
+function mockOpenSpecVerifyReport(changeId: string): void {
+	fsMockState.virtualFiles.set(
+		`/repo/project/openspec/changes/${changeId}/verify-report.md`,
+		"# Verify Report\n",
+	);
+}
+
 function mockReleaseNotesState(state: unknown): void {
 	fsMockState.releaseNotesState = JSON.stringify(state);
 }
@@ -971,6 +978,49 @@ describe("pi-hud extension", () => {
 			.join("\n");
 		expect(footerText).toContain("❔ Help     /hud-mode");
 		expect(footerText).not.toContain("📐 SDD");
+	});
+
+	test("footer keeps SDD flow for completed tasks that still need verification", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		mockOpenSpecChange("needs-verify", { completed: 4, total: 4 });
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness();
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const footerText = capturedFooterComponents[0]!
+			.render(160)
+			.map(unwrapBg)
+			.join("\n");
+		expect(footerText).toContain(
+			"🧭 Flow     📐 SDD needs-verify · tasks 4/4 · next: verify",
+		);
+		expect(footerText).not.toContain("❔ Help");
+	});
+
+	test("footer omits SDD flow for completed verified OpenSpec changes", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		mockOpenSpecChange("stale-verified-change", { completed: 49, total: 49 });
+		mockOpenSpecVerifyReport("stale-verified-change");
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness();
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const footerText = capturedFooterComponents[0]!
+			.render(160)
+			.map(unwrapBg)
+			.join("\n");
+		expect(footerText).toContain("❔ Help     /hud-mode");
+		expect(footerText).not.toContain("📐 SDD");
+		expect(footerText).not.toContain("tasks 49/49");
+		expect(footerText).not.toContain("next: sync");
 	});
 
 	test("footer ignores archived OpenSpec changes when detecting active SDD flow", async () => {
