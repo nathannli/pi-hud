@@ -19,6 +19,8 @@ import {
 
 const fsMockState = vi.hoisted(() => ({
 	settingsFiles: new Map<string, string>(),
+	virtualFiles: new Map<string, string>(),
+	virtualDirectories: new Set<string>(),
 	releaseNotes: undefined as string | undefined,
 	releaseNotesState: undefined as string | undefined,
 }));
@@ -27,6 +29,8 @@ vi.mock("node:fs", () => ({
 	existsSync: vi.fn(
 		(path: string) =>
 			fsMockState.settingsFiles.has(path) ||
+			fsMockState.virtualFiles.has(path) ||
+			fsMockState.virtualDirectories.has(path) ||
 			(path.endsWith("release-notes.json") &&
 				fsMockState.releaseNotes !== undefined) ||
 			(path.endsWith("state/pi-hud.json") &&
@@ -39,6 +43,8 @@ vi.mock("node:fs", () => ({
 	readFileSync: vi.fn((path: string) => {
 		const mocked = fsMockState.settingsFiles.get(path);
 		if (mocked !== undefined) return mocked;
+		const virtual = fsMockState.virtualFiles.get(path);
+		if (virtual !== undefined) return virtual;
 		if (path.endsWith("release-notes.json")) return fsMockState.releaseNotes;
 		if (path.endsWith("state/pi-hud.json"))
 			return fsMockState.releaseNotesState;
@@ -46,7 +52,31 @@ vi.mock("node:fs", () => ({
 			return JSON.stringify({ mcpServers: { filesystem: {}, github: {} } });
 		return "";
 	}),
-	statSync: vi.fn(() => ({ isFile: () => false, isDirectory: () => true })),
+	readdirSync: vi.fn((path: string, options?: { withFileTypes?: boolean }) => {
+		const prefix = `${path}/`;
+		const names = new Set<string>();
+		for (const filePath of fsMockState.virtualFiles.keys()) {
+			if (!filePath.startsWith(prefix)) continue;
+			const [name] = filePath.slice(prefix.length).split("/");
+			if (name) names.add(name);
+		}
+		for (const directoryPath of fsMockState.virtualDirectories) {
+			if (!directoryPath.startsWith(prefix)) continue;
+			const [name] = directoryPath.slice(prefix.length).split("/");
+			if (name) names.add(name);
+		}
+		if (!options?.withFileTypes) return [...names];
+		return [...names].map((name) => ({
+			name,
+			isDirectory: () => fsMockState.virtualDirectories.has(`${path}/${name}`),
+		}));
+	}),
+	statSync: vi.fn((path: string) => ({
+		isFile: () => fsMockState.virtualFiles.has(path),
+		isDirectory: () =>
+			fsMockState.virtualDirectories.has(path) ||
+			!fsMockState.virtualFiles.has(path),
+	})),
 	writeFileSync: vi.fn(),
 }));
 
@@ -62,6 +92,8 @@ vi.mock("node:child_process", () => ({
 afterEach(() => {
 	resetCapabilitiesCache();
 	fsMockState.settingsFiles.clear();
+	fsMockState.virtualFiles.clear();
+	fsMockState.virtualDirectories.clear();
 	fsMockState.releaseNotes = undefined;
 	fsMockState.releaseNotesState = undefined;
 	delete process.env.PI_CODING_AGENT_DIR;
@@ -80,6 +112,34 @@ function mockSettingsFile(path: string, settings: unknown): void {
 
 function mockReleaseNotes(notes: unknown): void {
 	fsMockState.releaseNotes = JSON.stringify(notes);
+}
+
+function mockOpenSpecChange(
+	changeId: string,
+	tasks: { completed: number; total: number },
+): void {
+	const openspecRoot = "/repo/project/openspec";
+	const changeRoot = `${openspecRoot}/changes/${changeId}`;
+	fsMockState.virtualDirectories.add(openspecRoot);
+	fsMockState.virtualDirectories.add(`${openspecRoot}/changes`);
+	fsMockState.virtualDirectories.add(changeRoot);
+	fsMockState.virtualFiles.set(`${openspecRoot}/config.yaml`, "version: 1\n");
+	fsMockState.virtualFiles.set(
+		`${changeRoot}/tasks.md`,
+		Array.from({ length: tasks.total }, (_, index) =>
+			index < tasks.completed ? "- [x] done" : "- [ ] todo",
+		).join("\n"),
+	);
+}
+
+function mockOpenSpecArchiveChange(changeId: string): void {
+	const openspecRoot = "/repo/project/openspec";
+	const archiveRoot = `${openspecRoot}/changes/archive`;
+	fsMockState.virtualDirectories.add(openspecRoot);
+	fsMockState.virtualDirectories.add(`${openspecRoot}/changes`);
+	fsMockState.virtualDirectories.add(archiveRoot);
+	fsMockState.virtualDirectories.add(`${archiveRoot}/${changeId}`);
+	fsMockState.virtualFiles.set(`${openspecRoot}/config.yaml`, "version: 1\n");
 }
 
 function mockReleaseNotesState(state: unknown): void {
@@ -831,6 +891,127 @@ describe("pi-hud extension", () => {
 		expect(footerText).toContain(
 			"🔁 Session  resume: pi --session session-1234",
 		);
+	});
+
+	test("footer shows compact SDD flow when a single OpenSpec change is active", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		mockOpenSpecChange("improve-footer", { completed: 3, total: 8 });
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness();
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const footerText = capturedFooterComponents[0]!
+			.render(160)
+			.map(unwrapBg)
+			.join("\n");
+		expect(footerText).toContain(
+			"🧭 Flow     📐 SDD improve-footer · tasks 3/8 · next: apply",
+		);
+		expect(footerText).toContain("🔗 docs");
+		expect(footerText).not.toContain("❔ Help");
+	});
+
+	test("footer shortens SDD flow before line truncation", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		mockOpenSpecChange("very-long-open-spec-change-name", {
+			completed: 1,
+			total: 3,
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness();
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const flowLine = unwrapBg(capturedFooterComponents[0]!.render(44)[3]!);
+		expect(visibleWidth(flowLine)).toBe(44);
+		expect(flowLine).toContain("📐 SDD · apply");
+		expect(flowLine).not.toContain("tasks 1/3");
+	});
+
+	test("footer omits SDD flow when no active OpenSpec change is detected", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness();
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const footerText = capturedFooterComponents[0]!
+			.render(120)
+			.map(unwrapBg)
+			.join("\n");
+		expect(footerText).toContain("❔ Help     /hud-mode");
+		expect(footerText).not.toContain("📐 SDD");
+	});
+
+	test("footer omits SDD flow when multiple OpenSpec changes are present", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		mockOpenSpecChange("first-change", { completed: 1, total: 2 });
+		mockOpenSpecChange("second-change", { completed: 0, total: 2 });
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness();
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const footerText = capturedFooterComponents[0]!
+			.render(120)
+			.map(unwrapBg)
+			.join("\n");
+		expect(footerText).toContain("❔ Help     /hud-mode");
+		expect(footerText).not.toContain("📐 SDD");
+	});
+
+	test("footer ignores archived OpenSpec changes when detecting active SDD flow", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		mockOpenSpecChange("active-change", { completed: 1, total: 4 });
+		mockOpenSpecArchiveChange("old-change");
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness();
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const footerText = capturedFooterComponents[0]!
+			.render(160)
+			.map(unwrapBg)
+			.join("\n");
+		expect(footerText).toContain(
+			"🧭 Flow     📐 SDD active-change · tasks 1/4 · next: apply",
+		);
+		expect(footerText).not.toContain("❔ Help");
+	});
+
+	test("footer omits SDD flow when only archived OpenSpec changes exist", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		mockOpenSpecArchiveChange("old-change");
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness();
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const footerText = capturedFooterComponents[0]!
+			.render(120)
+			.map(unwrapBg)
+			.join("\n");
+		expect(footerText).toContain("❔ Help     /hud-mode");
+		expect(footerText).not.toContain("📐 SDD");
 	});
 
 	test("footer omits thinking level for non-reasoning models", async () => {

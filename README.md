@@ -195,6 +195,14 @@ The footer renders five compact lines:
 ▏ 🔁 Session  resume: pi --session 019e9925-92bb-78d7-aa4a-44ef32c10fcc
 ```
 
+When the project has exactly one active OpenSpec change, the help line becomes a short workflow hint instead of listing full SDD details:
+
+```text
+▏ 🧭 Flow     📐 SDD improve-footer · tasks 3/8 · next: apply │ 🔗 docs
+```
+
+The SDD hint appears only when `openspec/config.yaml` and a single `openspec/changes/<change-id>` directory are present. It stays one line, shortens before truncation in narrow terminals, and omits itself rather than guessing when multiple active changes exist.
+
 Git status indicators:
 
 | Indicator | Meaning | Branch suffix |
