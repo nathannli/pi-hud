@@ -191,7 +191,7 @@ The footer renders five compact lines:
 ▏ 📁 Project  Pi-hud /Users/ludev/projectes/pi-hud 🟢 (main)
 ▏ 🧠 Context  12.0k tokens │ 🟢 6.0% used/200.0k ctx │ GPT-5.5 │ $0.01000 spent
 ▏ 🔌 MCP      2/2 servers │ Worktree: No worktrees
-▏ ❔ Help     /hud-mode to switch │ Status: LSP Inactive
+▏ ❔ Help     /hud-mode │ /hud-settings │ 🔗 docs │ Status: LSP Inactive
 ▏ 🔁 Session  resume: pi --session 019e9925-92bb-78d7-aa4a-44ef32c10fcc
 ```
 
