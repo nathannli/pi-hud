@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0
+
+### Minor Changes
+
+- Add subscription-friendly footer usage display settings for hiding token and cost details, plus an optional colored context usage bar.
+- Add a HUD settings modal for editing mode, shortcuts, sizing, startup notifications, and module visibility from inside Pi.
+
+### Patch Changes
+
+- Prefer Pi's live MCP extension status in footer mode so stale project-local MCP configuration does not appear when the active agent config is empty.
+
 ## 0.7.0
 
 ### Minor Changes

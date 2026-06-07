@@ -24,7 +24,12 @@ const previousTag = git(["tag", "--list", "v-*-RELEASE", "--sort=-creatordate"])
 	.find(Boolean);
 
 const range = previousTag ? `${previousTag}..HEAD` : "HEAD";
-const rawCommits = git(["log", range, "--pretty=format:%h%x00%s%x1e"]);
+const rawCommits = git([
+	"log",
+	range,
+	"--first-parent",
+	"--pretty=format:%h%x00%s%x1e",
+]);
 const commits = rawCommits
 	.split("\x1e")
 	.map((entry) => entry.trim())
