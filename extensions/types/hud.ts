@@ -52,6 +52,10 @@ export interface ActiveSubagentToolRun {
 
 export type HudMode = "overlay" | "footer";
 
+export type HudUsageDisplay = "metered" | "subscription";
+
+export type HudContextIndicator = "icon" | "bar";
+
 export type HudVisibilityKey = "context" | "project" | "worktrees" | "mcps";
 
 export type HudVisibility = Record<HudVisibilityKey, boolean>;
@@ -63,6 +67,8 @@ export interface HudSettings {
 	minimizeShortcut: string;
 	autoCompactWhileStreaming: boolean;
 	startupNotification: boolean;
+	usageDisplay: HudUsageDisplay;
+	contextIndicator: HudContextIndicator;
 	expandedWidth: number;
 	compactWidth: number;
 	minTerminalWidth: number;

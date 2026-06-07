@@ -171,6 +171,8 @@ describe("pi-hud extension", () => {
 		process.env.PI_CODING_AGENT_DIR = "/agent";
 		expect(readHudSettings("/repo/project")).toMatchObject({
 			mode: "overlay",
+			usageDisplay: "metered",
+			contextIndicator: "icon",
 			visibility: {
 				context: true,
 				project: true,
@@ -208,9 +210,20 @@ describe("pi-hud extension", () => {
 		});
 		expect(readHudSettings("/repo/project").mode).toBe("footer");
 		mockSettingsFile("/repo/project/.pi/settings.json", {
-			hud: { mode: "overlay" },
+			hud: {
+				mode: "overlay",
+				usageDisplay: "subscription",
+				contextIndicator: "bar",
+			},
 		});
 		expect(readHudSettings("/repo/project").mode).toBe("overlay");
+		expect(readHudSettings("/repo/project").usageDisplay).toBe("subscription");
+		expect(readHudSettings("/repo/project").contextIndicator).toBe("bar");
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { usageDisplay: "verbose", contextIndicator: "sparkline" },
+		});
+		expect(readHudSettings("/repo/project").usageDisplay).toBe("metered");
+		expect(readHudSettings("/repo/project").contextIndicator).toBe("icon");
 	});
 
 	test("persists, reports, and validates HUD visibility arguments", async () => {
@@ -331,13 +344,16 @@ describe("pi-hud extension", () => {
 		expect(rendered).toContain("Minimize shortcut");
 		expect(rendered).toContain("Auto-compact while streaming");
 		expect(rendered).toContain("Startup notification");
+		expect(rendered).toContain("Usage display");
+		expect(rendered).toContain("metered");
+		expect(rendered).toContain("Context indicator");
+		expect(rendered).toContain("icon");
 		expect(rendered).toContain("Expanded width");
 		expect(rendered).toContain("Compact width");
 		expect(rendered).toContain("Min terminal width");
 		expect(rendered).toContain("Modules visibility");
 		expect(rendered).toContain("Show current");
 		expect(rendered).toContain("Restore defaults");
-		expect(rendered).toContain("Back");
 
 		settingsComponent.handleInput(" ");
 		expect(writeFileSync).toHaveBeenCalledWith(
@@ -381,7 +397,7 @@ describe("pi-hud extension", () => {
 			throw new Error("Expected HUD settings modal to handle input.");
 		}
 
-		for (let index = 0; index < 6; index += 1) {
+		for (let index = 0; index < 8; index += 1) {
 			settingsComponent.handleInput("\x1b[B");
 		}
 		settingsComponent.handleInput(" ");
@@ -632,6 +648,58 @@ describe("pi-hud extension", () => {
 		expect(notify).toHaveBeenCalledWith(
 			"HUD startup notification disabled.",
 			"info",
+		);
+	});
+
+	test("updates usage display from command arguments", async () => {
+		const { commands, ctx, notify } = createHarness();
+
+		await commands
+			.get("hud-settings")!
+			.handler("usageDisplay subscription", ctx);
+
+		expect(writeFileSync).toHaveBeenCalledWith(
+			"/repo/project/.pi/settings.json",
+			expect.stringContaining('"usageDisplay": "subscription"'),
+			"utf8",
+		);
+		expect(notify).toHaveBeenCalledWith(
+			"HUD usage display set to subscription.",
+			"info",
+		);
+
+		vi.mocked(writeFileSync).mockClear();
+		await commands.get("hud-settings")!.handler("usageDisplay verbose", ctx);
+		expect(writeFileSync).not.toHaveBeenCalled();
+		expect(notify).toHaveBeenCalledWith(
+			expect.stringContaining("Usage: /hud-settings"),
+			"warning",
+		);
+	});
+
+	test("updates context indicator from command arguments", async () => {
+		const { commands, ctx, notify } = createHarness();
+
+		await commands.get("hud-settings")!.handler("contextIndicator bar", ctx);
+
+		expect(writeFileSync).toHaveBeenCalledWith(
+			"/repo/project/.pi/settings.json",
+			expect.stringContaining('"contextIndicator": "bar"'),
+			"utf8",
+		);
+		expect(notify).toHaveBeenCalledWith(
+			"HUD context indicator set to bar.",
+			"info",
+		);
+
+		vi.mocked(writeFileSync).mockClear();
+		await commands
+			.get("hud-settings")!
+			.handler("contextIndicator sparkline", ctx);
+		expect(writeFileSync).not.toHaveBeenCalled();
+		expect(notify).toHaveBeenCalledWith(
+			expect.stringContaining("Usage: /hud-settings"),
+			"warning",
 		);
 	});
 
@@ -973,6 +1041,91 @@ describe("pi-hud extension", () => {
 		expect(footerText).toContain(
 			"🔁 Session  resume: pi --session session-1234",
 		);
+	});
+
+	test("footer subscription usage display hides token and cost details", async () => {
+		setCapabilities({ images: null, trueColor: true, hyperlinks: false });
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer", usageDisplay: "subscription" },
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness({
+			showThemeColors: true,
+			mcpAdapter: true,
+		});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const footerText = capturedFooterComponents[0]!
+			.render(120)
+			.map(unwrapBg)
+			.join("\n");
+		expect(footerText).toContain(
+			"🧠 Context  🟢 6.0% used/200.0k ctx │ Model Name / medium",
+		);
+		expect(footerText).not.toContain("12.0k tokens");
+		expect(footerText).not.toContain("$0.01000 spent");
+		expect(footerText).not.toContain("thinking: medium");
+	});
+
+	test("footer context indicator can render a colored bar in metered mode", async () => {
+		setCapabilities({ images: null, trueColor: true, hyperlinks: false });
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer", contextIndicator: "bar" },
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness({
+			contextPercent: 66,
+			showThemeColors: true,
+			mcpAdapter: true,
+		});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const contextLine = capturedFooterComponents[0]!.render(140)[1]!;
+		const plainContextLine = unwrapBg(contextLine);
+		expect(contextLine).toContain("<warning>█████████████</warning>");
+		expect(contextLine).toContain("<dim>░░░░░░░</dim>");
+		expect(plainContextLine).toContain(
+			"🧠 Context  12.0k tokens │ [█████████████░░░░░░░] 66.0% used/200.0k ctx",
+		);
+		expect(plainContextLine).toContain("$0.01000 spent");
+		expect(plainContextLine).not.toContain("🟡 66.0%");
+	});
+
+	test("footer context indicator can render a colored bar in subscription mode", async () => {
+		setCapabilities({ images: null, trueColor: true, hyperlinks: false });
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: {
+				mode: "footer",
+				usageDisplay: "subscription",
+				contextIndicator: "bar",
+			},
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness({
+			contextPercent: 96,
+			showThemeColors: true,
+			mcpAdapter: true,
+		});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const contextLine = capturedFooterComponents[0]!.render(140)[1]!;
+		const plainContextLine = unwrapBg(contextLine);
+		expect(contextLine).toContain(
+			"<error><bold>███████████████████</bold></error>",
+		);
+		expect(contextLine).toContain("<dim>░</dim>");
+		expect(plainContextLine).toContain(
+			"🧠 Context  [███████████████████░] 96.0% used/200.0k ctx │ Model Name / medium",
+		);
+		expect(plainContextLine).not.toContain("12.0k tokens");
+		expect(plainContextLine).not.toContain("$0.01000 spent");
+		expect(plainContextLine).not.toContain("🔴 96.0%");
 	});
 
 	test("footer shows compact SDD flow when a single OpenSpec change is active", async () => {

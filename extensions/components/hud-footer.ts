@@ -24,7 +24,11 @@ import {
 	readOpenSpecStatus,
 	type OpenSpecStatus,
 } from "../workflow/openspec-status.js";
-import type { SessionStats, SubagentStatus } from "../types/hud.js";
+import type {
+	HudSettings,
+	SessionStats,
+	SubagentStatus,
+} from "../types/hud.js";
 import { formatNumber } from "../utils/formatters.js";
 import { getModelLabel, getThinkingLabel } from "../utils/model-status.js";
 
@@ -52,6 +56,7 @@ export class HudFooter implements Component {
 		private theme: Theme,
 		private footerData: FooterData,
 		private subagentStatus: SubagentStatus,
+		private settings: HudSettings,
 	) {
 		this.unsubscribeBranchChange = this.footerData.onBranchChange(() =>
 			this.tui.requestRender(),
@@ -82,10 +87,21 @@ export class HudFooter implements Component {
 			(contextWindow > 0 && contextTokens !== null
 				? (contextTokens / contextWindow) * 100
 				: null);
-		const contextPercentSegment = formatContextPercentSegment(contextPercent);
+		const contextIndicatorSegment = formatContextIndicatorSegment(
+			contextPercent,
+			this.settings.contextIndicator,
+		);
 		const modelLabel = getModelLabel(this.ctx.model);
 		const thinkingLabel = getThinkingLabel(this.pi, this.ctx.model);
-		const thinkingSegment = thinkingLabel ? ` │ ${thinkingLabel}` : "";
+		const contextLine = formatContextLine({
+			usageDisplay: this.settings.usageDisplay,
+			contextTokens,
+			contextIndicatorText: contextIndicatorSegment.text,
+			contextWindow,
+			modelLabel,
+			thinkingLabel,
+			cost: stats.cost,
+		});
 		const worktree = getCurrentWorktreePath(projectPath);
 		const extensionStatuses = [
 			...this.footerData.getExtensionStatuses().values(),
@@ -124,9 +140,9 @@ export class HudFooter implements Component {
 				safeWidth,
 			),
 			this.renderLine(
-				`▏ 🧠 Context  ${formatContextTokens(contextTokens)} tokens │ ${contextPercentSegment.text} used/${formatNumber(contextWindow)} ctx │ ${modelLabel}${thinkingSegment} │ $${stats.cost.toFixed(5)} spent${subagentSegment}`,
+				`${contextLine}${subagentSegment}`,
 				safeWidth,
-				[contextPercentSegment],
+				contextIndicatorSegment.styles,
 			),
 			this.renderLine(mcpOrWorktreeLine, safeWidth),
 			this.renderLine(
@@ -150,6 +166,33 @@ export class HudFooter implements Component {
 			applyTextStyles(padded, styles, this.theme),
 		);
 	}
+}
+
+function formatContextLine(options: {
+	usageDisplay: HudSettings["usageDisplay"];
+	contextTokens: number | null;
+	contextIndicatorText: string;
+	contextWindow: number;
+	modelLabel: string;
+	thinkingLabel: string | null;
+	cost: number;
+}): string {
+	const contextUsage = `${options.contextIndicatorText} used/${formatNumber(options.contextWindow)} ctx`;
+	if (options.usageDisplay === "subscription") {
+		const thinkingSuffix = options.thinkingLabel
+			? ` / ${formatSubscriptionThinkingLabel(options.thinkingLabel)}`
+			: "";
+		return `▏ 🧠 Context  ${contextUsage} │ ${options.modelLabel}${thinkingSuffix}`;
+	}
+
+	const thinkingSegment = options.thinkingLabel
+		? ` │ ${options.thinkingLabel}`
+		: "";
+	return `▏ 🧠 Context  ${formatContextTokens(options.contextTokens)} tokens │ ${contextUsage} │ ${options.modelLabel}${thinkingSegment} │ $${options.cost.toFixed(5)} spent`;
+}
+
+function formatSubscriptionThinkingLabel(thinkingLabel: string): string {
+	return thinkingLabel.replace(/^thinking:\s*/, "");
 }
 
 function formatDocsHintStyle(): FooterTextStyle | null {
@@ -251,7 +294,16 @@ function formatGitStatusIcon(status: GitStatus): string {
 	return "🟢";
 }
 
-function formatContextPercentSegment(percent: number | null): FooterTextStyle {
+function formatContextIndicatorSegment(
+	percent: number | null,
+	indicator: HudSettings["contextIndicator"],
+): { text: string; styles: FooterTextStyle[] } {
+	if (indicator === "bar") return formatContextBarSegment(percent);
+	const iconSegment = formatContextIconSegment(percent);
+	return { text: iconSegment.text, styles: [iconSegment] };
+}
+
+function formatContextIconSegment(percent: number | null): FooterTextStyle {
 	if (percent === null) return { text: "unknown", color: "dim" };
 	const icon = getContextUsageIcon(percent);
 	return {
@@ -259,6 +311,33 @@ function formatContextPercentSegment(percent: number | null): FooterTextStyle {
 		color: getContextUsageColor(percent),
 		bold: percent >= 85,
 	};
+}
+
+function formatContextBarSegment(percent: number | null): {
+	text: string;
+	styles: FooterTextStyle[];
+} {
+	const barWidth = 20;
+	const filledCount =
+		percent === null
+			? 0
+			: Math.max(0, Math.min(barWidth, Math.round((percent / 100) * barWidth)));
+	const emptyCount = barWidth - filledCount;
+	const filled = "█".repeat(filledCount);
+	const empty = "░".repeat(emptyCount);
+	const bar = `[${filled}${empty}]`;
+	const label = percent === null ? "unknown" : `${percent.toFixed(1)}%`;
+	const styles: FooterTextStyle[] = [];
+	if (filled.length > 0) {
+		styles.push({
+			text: filled,
+			color: getContextUsageColor(percent),
+			bold: percent !== null && percent >= 85,
+		});
+	}
+	if (empty.length > 0) styles.push({ text: empty, color: "dim" });
+	if (percent === null) styles.push({ text: label, color: "dim" });
+	return { text: `${bar} ${label}`, styles };
 }
 
 function getContextUsageIcon(percent: number): string {
