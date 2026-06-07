@@ -86,12 +86,15 @@ export class HudFooter implements Component {
 		const modelLabel = getModelLabel(this.ctx.model);
 		const thinkingLabel = getThinkingLabel(this.pi, this.ctx.model);
 		const thinkingSegment = thinkingLabel ? ` │ ${thinkingLabel}` : "";
-		const mcpAdapter = getMcpAdapterInfo(this.pi, projectPath);
-		const mcpLabel = formatMcpCount(mcpAdapter);
 		const worktree = getCurrentWorktreePath(projectPath);
 		const extensionStatuses = [
 			...this.footerData.getExtensionStatuses().values(),
 		].filter((status) => shouldShowExtensionStatus(status));
+		const hasLiveMcpStatus = extensionStatuses.some((status) =>
+			isMcpExtensionStatus(status),
+		);
+		const mcpAdapter = getMcpAdapterInfo(this.pi, projectPath);
+		const mcpLabel = formatMcpCount(mcpAdapter);
 		const subagentSegment = this.subagentStatus.seen
 			? ` │ Subagents: ${this.subagentStatus.running} run · ${this.subagentStatus.completed} done · ${this.subagentStatus.failed} err`
 			: "";
@@ -111,6 +114,10 @@ export class HudFooter implements Component {
 				)
 			: `▏ ❔ Help     /hud-mode │ /hud-settings │ ${PI_HUD_DOCS_LABEL}${statusSegment}`;
 
+		const mcpOrWorktreeLine = hasLiveMcpStatus
+			? `▏ 🌿 Worktree: ${worktree}`
+			: `▏ 🔌 MCP      ${mcpLabel} │ Worktree: ${worktree}`;
+
 		return [
 			this.renderLine(
 				`▏ 📁 Project  ${projectName} ${projectPath}${branchLabel}`,
@@ -121,10 +128,7 @@ export class HudFooter implements Component {
 				safeWidth,
 				[contextPercentSegment],
 			),
-			this.renderLine(
-				`▏ 🔌 MCP      ${mcpLabel} │ Worktree: ${worktree}`,
-				safeWidth,
-			),
+			this.renderLine(mcpOrWorktreeLine, safeWidth),
 			this.renderLine(
 				helpOrFlowLine,
 				safeWidth,
@@ -304,8 +308,11 @@ function formatMcpCount(adapter: {
 }
 
 function shouldShowExtensionStatus(status: string): boolean {
-	const trimmed = status.trim();
-	return trimmed.length > 0 && !trimmed.startsWith("MCP:");
+	return status.trim().length > 0;
+}
+
+function isMcpExtensionStatus(status: string): boolean {
+	return status.trim().startsWith("MCP:");
 }
 
 function padToVisibleWidth(text: string, width: number): string {
