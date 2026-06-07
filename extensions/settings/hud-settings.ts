@@ -8,8 +8,11 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
 	Container,
+	Input,
 	SettingsList,
 	Text,
+	type Component,
+	type Focusable,
 	type KeyId,
 	type OverlayAnchor,
 	type OverlayMargin,
@@ -72,120 +75,7 @@ export async function handleHudSettingsCommand(
 		return;
 	}
 
-	const choice = await ctx.ui.select("HUD settings", [
-		"mode",
-		"position",
-		"shortcut",
-		"minimizeShortcut",
-		"autoCompactWhileStreaming",
-		"startupNotification",
-		"expandedWidth",
-		"compactWidth",
-		"minTerminalWidth",
-		"Modules visibility",
-		"show current",
-	]);
-	if (!choice) return;
-	if (choice === "show current") {
-		ctx.ui.notify(formatHudSettings(settings), "info");
-		return;
-	}
-
-	if (choice === "mode") {
-		const mode = await ctx.ui.select("HUD mode", [...HUD_MODES]);
-		if (!mode) return;
-		const updated = { ...settings, mode: mode as HudMode };
-		writeProjectHudSettings(projectPath, updated);
-		ctx.ui.notify(`HUD mode set to ${mode}.`, "info");
-		return;
-	}
-
-	if (choice === "position") {
-		const position = await ctx.ui.select("HUD position", [...VALID_POSITIONS]);
-		if (!position) return;
-		const updated = { ...settings, position: position as OverlayAnchor };
-		writeProjectHudSettings(projectPath, updated);
-		ctx.ui.notify(
-			`HUD position set to ${position}. Reopen /hud if it is currently visible.`,
-			"info",
-		);
-		return;
-	}
-
-	if (choice === "shortcut" || choice === "minimizeShortcut") {
-		const shortcut = await ctx.ui.input(`HUD ${choice}`, settings[choice]);
-		if (shortcut === undefined) return;
-		const normalizedShortcut = normalizeShortcut(shortcut, "");
-		if (normalizedShortcut.length === 0) {
-			ctx.ui.notify(
-				"Invalid HUD shortcut. Do not use enter, return, alt+m, ctrl+m, ctrl+shift+m, ctrl+j, or ctrl+shift+j because they conflict with Pi or terminal input keys.",
-				"warning",
-			);
-			return;
-		}
-		const updated = { ...settings, [choice]: normalizedShortcut };
-		writeProjectHudSettings(projectPath, updated);
-		ctx.ui.notify(
-			`HUD ${choice} saved. Run /reload for the shortcut registration to change.`,
-			"info",
-		);
-		return;
-	}
-
-	if (choice === "autoCompactWhileStreaming") {
-		const value = await ctx.ui.select("Auto-compact while streaming", [
-			"enabled",
-			"disabled",
-		]);
-		if (!value) return;
-		const updated = {
-			...settings,
-			autoCompactWhileStreaming: value === "enabled",
-		};
-		writeProjectHudSettings(projectPath, updated);
-		ctx.ui.notify(`HUD auto-compact ${value}.`, "info");
-		return;
-	}
-
-	if (choice === "startupNotification") {
-		const value = await ctx.ui.select("Startup notification", [
-			"enabled",
-			"disabled",
-		]);
-		if (!value) return;
-		const updated = {
-			...settings,
-			startupNotification: value === "enabled",
-		};
-		writeProjectHudSettings(projectPath, updated);
-		ctx.ui.notify(`HUD startup notification ${value}.`, "info");
-		return;
-	}
-
-	if (choice === "Modules visibility") {
-		await openModulesVisibilitySettings(ctx, projectPath, settings);
-		return;
-	}
-
-	const numericChoice = choice as
-		| "expandedWidth"
-		| "compactWidth"
-		| "minTerminalWidth";
-	const value = await ctx.ui.input(
-		`HUD ${numericChoice}`,
-		String(settings[numericChoice]),
-	);
-	if (value === undefined) return;
-	const updated = updateHudSettingFromArgs(
-		settings,
-		`${numericChoice} ${value}`,
-	);
-	if (!updated) {
-		ctx.ui.notify(`Invalid value for ${numericChoice}.`, "warning");
-		return;
-	}
-	writeProjectHudSettings(projectPath, updated.settings);
-	ctx.ui.notify(updated.message, "info");
+	await openHudSettingsModal(ctx, projectPath, settings);
 }
 
 export function toShortcutKey(shortcut: string): KeyId | undefined {
@@ -418,71 +308,487 @@ function updateHudSettingFromArgs(
 	return undefined;
 }
 
-async function openModulesVisibilitySettings(
+type HudSettingsModalEditableId =
+	| "mode"
+	| "position"
+	| "shortcut"
+	| "minimizeShortcut"
+	| "autoCompactWhileStreaming"
+	| "startupNotification"
+	| "expandedWidth"
+	| "compactWidth"
+	| "minTerminalWidth";
+
+type HudSettingsModalActionId =
+	| HudSettingsModalEditableId
+	| "visibility"
+	| "showCurrent"
+	| "restoreDefaults"
+	| "back";
+
+async function openHudSettingsModal(
 	ctx: ExtensionCommandContext,
 	projectPath: string,
 	settings: HudSettings,
 ): Promise<void> {
+	let current = cloneHudSettings(settings);
+	await ctx.ui.custom(
+		(tui, theme, _keybindings, done) => {
+			const container = new Container();
+			container.addChild(
+				new Text(theme.fg("accent", theme.bold("HUD Settings")), 1, 1),
+			);
+
+			let settingsList: SettingsList;
+			let submenuOpen = false;
+			const originalVisibility = { ...current.visibility };
+			const refreshSettingsList = () => {
+				for (const item of createHudSettingsModalItems(
+					ctx,
+					projectPath,
+					theme,
+					tui,
+					() => current,
+					(next) => {
+						current = next;
+					},
+					(open) => {
+						submenuOpen = open;
+					},
+				)) {
+					settingsList.updateValue(item.id, item.currentValue);
+				}
+			};
+			const restoreDefaults = () => {
+				current = cloneHudSettings(DEFAULT_HUD_SETTINGS);
+				writeProjectHudSettings(projectPath, current);
+				refreshSettingsList();
+				updateVisibilityReloadStatus(ctx, theme, current, originalVisibility);
+				ctx.ui.notify(
+					"HUD settings restored to defaults. Run /reload if shortcuts or module visibility changed.",
+					"info",
+				);
+				tui.requestRender();
+			};
+
+			settingsList = new SettingsList(
+				createHudSettingsModalItems(
+					ctx,
+					projectPath,
+					theme,
+					tui,
+					() => current,
+					(next) => {
+						current = next;
+					},
+					(open) => {
+						submenuOpen = open;
+					},
+				),
+				14,
+				createSettingsListTheme(theme),
+				(id, newValue) => {
+					const action = id as HudSettingsModalActionId;
+					if (action === "back") {
+						done(undefined);
+						return;
+					}
+					if (action === "showCurrent") {
+						ctx.ui.notify(formatHudSettings(current), "info");
+						settingsList.updateValue(action, "open");
+						return;
+					}
+					if (action === "restoreDefaults") {
+						restoreDefaults();
+						return;
+					}
+					if (action === "visibility") {
+						settingsList.updateValue(action, formatVisibilitySummary(current));
+						tui.requestRender();
+						return;
+					}
+					const updated = updateHudSettingFromArgs(
+						current,
+						`${action} ${newValue}`,
+					);
+					if (!updated) {
+						ctx.ui.notify(
+							`Invalid HUD ${formatHudSettingLabel(action)}.`,
+							"warning",
+						);
+						settingsList.updateValue(
+							action,
+							formatHudSettingValue(current, action),
+						);
+						tui.requestRender();
+						return;
+					}
+					current = updated.settings;
+					writeProjectHudSettings(projectPath, current);
+					ctx.ui.notify(getModalUpdateMessage(updated.message), "info");
+					settingsList.updateValue(
+						action,
+						formatHudSettingValue(current, action),
+					);
+					tui.requestRender();
+				},
+				() => done(undefined),
+			);
+			container.addChild(settingsList);
+			container.addChild(
+				new Text(
+					theme.fg(
+						"dim",
+						"j/k scroll • enter edit/save • r restore • esc back",
+					),
+					1,
+					0,
+				),
+			);
+			return {
+				render: (width: number) => container.render(width),
+				invalidate: () => container.invalidate(),
+				handleInput: (data: string) => {
+					if (!submenuOpen && (data === "r" || data === "R")) {
+						restoreDefaults();
+						return;
+					}
+					settingsList.handleInput?.(data);
+					tui.requestRender();
+				},
+			};
+		},
+		{
+			overlay: true,
+			overlayOptions: {
+				anchor: "center",
+				width: 88,
+				maxHeight: "80%",
+			},
+		},
+	);
+}
+
+function createHudSettingsModalItems(
+	ctx: ExtensionCommandContext,
+	projectPath: string,
+	theme: Theme,
+	tui: { requestRender(): void },
+	getSettings: () => HudSettings,
+	onSettingsChange: (settings: HudSettings) => void,
+	onSubmenuStateChange: (open: boolean) => void,
+): SettingItem[] {
+	const settings = getSettings();
+	return [
+		{
+			id: "mode",
+			label: "Mode",
+			currentValue: settings.mode,
+			values: [...HUD_MODES],
+		},
+		{
+			id: "position",
+			label: "Position",
+			currentValue: settings.position,
+			values: [...VALID_POSITIONS],
+		},
+		{
+			id: "shortcut",
+			label: "Shortcut",
+			currentValue: settings.shortcut,
+			submenu: (currentValue, done) => {
+				onSubmenuStateChange(true);
+				return createValueInputSubmenu(
+					"Shortcut",
+					currentValue,
+					theme,
+					(value) => {
+						onSubmenuStateChange(false);
+						done(value);
+					},
+				);
+			},
+		},
+		{
+			id: "minimizeShortcut",
+			label: "Minimize shortcut",
+			currentValue: settings.minimizeShortcut,
+			submenu: (currentValue, done) => {
+				onSubmenuStateChange(true);
+				return createValueInputSubmenu(
+					"Minimize shortcut",
+					currentValue,
+					theme,
+					(value) => {
+						onSubmenuStateChange(false);
+						done(value);
+					},
+				);
+			},
+		},
+		{
+			id: "autoCompactWhileStreaming",
+			label: "Auto-compact while streaming",
+			currentValue: formatEnabled(settings.autoCompactWhileStreaming),
+			values: ["enabled", "disabled"],
+		},
+		{
+			id: "startupNotification",
+			label: "Startup notification",
+			currentValue: formatEnabled(settings.startupNotification),
+			values: ["enabled", "disabled"],
+		},
+		{
+			id: "expandedWidth",
+			label: "Expanded width",
+			currentValue: String(settings.expandedWidth),
+			submenu: (currentValue, done) => {
+				onSubmenuStateChange(true);
+				return createValueInputSubmenu(
+					"Expanded width",
+					currentValue,
+					theme,
+					(value) => {
+						onSubmenuStateChange(false);
+						done(value);
+					},
+				);
+			},
+		},
+		{
+			id: "compactWidth",
+			label: "Compact width",
+			currentValue: String(settings.compactWidth),
+			submenu: (currentValue, done) => {
+				onSubmenuStateChange(true);
+				return createValueInputSubmenu(
+					"Compact width",
+					currentValue,
+					theme,
+					(value) => {
+						onSubmenuStateChange(false);
+						done(value);
+					},
+				);
+			},
+		},
+		{
+			id: "minTerminalWidth",
+			label: "Min terminal width",
+			currentValue: String(settings.minTerminalWidth),
+			submenu: (currentValue, done) => {
+				onSubmenuStateChange(true);
+				return createValueInputSubmenu(
+					"Min terminal width",
+					currentValue,
+					theme,
+					(value) => {
+						onSubmenuStateChange(false);
+						done(value);
+					},
+				);
+			},
+		},
+		{
+			id: "visibility",
+			label: "Modules visibility",
+			currentValue: formatVisibilitySummary(settings),
+			submenu: (_currentValue, done) => {
+				onSubmenuStateChange(true);
+				return createModulesVisibilityComponent(
+					ctx,
+					projectPath,
+					getSettings(),
+					theme,
+					tui,
+					(selectedValue) => {
+						onSubmenuStateChange(false);
+						done(selectedValue);
+					},
+					onSettingsChange,
+				);
+			},
+		},
+		{
+			id: "showCurrent",
+			label: "Show current",
+			currentValue: "open",
+			values: ["open"],
+		},
+		{
+			id: "restoreDefaults",
+			label: "Restore defaults",
+			currentValue: "restore",
+			values: ["restore"],
+		},
+		{
+			id: "back",
+			label: "Back",
+			currentValue: "close",
+			values: ["close"],
+		},
+	];
+}
+
+function createValueInputSubmenu(
+	title: string,
+	currentValue: string,
+	theme: Theme,
+	done: (selectedValue?: string) => void,
+): Component & Focusable {
+	const input = new Input();
+	input.onSubmit = (value) => done(value);
+	input.onEscape = () => done(undefined);
+	return {
+		get focused() {
+			return input.focused;
+		},
+		set focused(value: boolean) {
+			input.focused = value;
+		},
+		render: (width: number) => [
+			theme.fg("accent", theme.bold(title)),
+			theme.fg("dim", `Current: ${currentValue}`),
+			theme.fg("dim", "type replacement • enter save • esc back"),
+			...input.render(width),
+		],
+		invalidate: () => input.invalidate(),
+		handleInput: (data: string) => input.handleInput(data),
+	};
+}
+
+function createModulesVisibilityComponent(
+	ctx: ExtensionCommandContext,
+	projectPath: string,
+	settings: HudSettings,
+	theme: Theme,
+	tui: { requestRender(): void },
+	done: (selectedValue?: string) => void,
+	onSettingsChange?: (settings: HudSettings) => void,
+): Component {
 	let current = settings;
 	const originalVisibility = { ...settings.visibility };
-	await ctx.ui.custom((tui, theme, _keybindings, done) => {
-		const items: SettingItem[] = [
-			...HUD_VISIBILITY_KEYS.map((key) => ({
-				id: key,
-				label: HUD_VISIBILITY_LABELS[key],
-				currentValue: current.visibility[key] ? "enabled" : "disabled",
-				values: ["enabled", "disabled"],
-			})),
-			{
-				id: "default",
-				label: "Default settings",
-				currentValue: "reset",
-				values: ["reset"],
-				description: "Restore all configurable HUD modules to visible.",
-			},
-		];
-		const container = new Container();
-		container.addChild(
-			new Text(theme.fg("accent", theme.bold("Modules visibility")), 1, 1),
-		);
-		const settingsList = new SettingsList(
-			items,
-			Math.min(items.length + 2, 12),
-			createSettingsListTheme(theme),
-			(id, newValue) => {
-				if (id === "default") {
-					current = {
-						...current,
-						visibility: { ...DEFAULT_HUD_SETTINGS.visibility },
-					};
-					for (const key of HUD_VISIBILITY_KEYS) {
-						settingsList.updateValue(
-							key,
-							current.visibility[key] ? "enabled" : "disabled",
-						);
-					}
-					writeProjectHudSettings(projectPath, current);
-					updateVisibilityReloadStatus(ctx, theme, current, originalVisibility);
-					tui.requestRender();
-					return;
+	const items: SettingItem[] = [
+		...HUD_VISIBILITY_KEYS.map((key) => ({
+			id: key,
+			label: HUD_VISIBILITY_LABELS[key],
+			currentValue: current.visibility[key] ? "enabled" : "disabled",
+			values: ["enabled", "disabled"],
+		})),
+		{
+			id: "default",
+			label: "Default settings",
+			currentValue: "reset",
+			values: ["reset"],
+			description: "Restore all configurable HUD modules to visible.",
+		},
+	];
+	const container = new Container();
+	container.addChild(
+		new Text(theme.fg("accent", theme.bold("Modules visibility")), 1, 1),
+	);
+	const settingsList = new SettingsList(
+		items,
+		Math.min(items.length + 2, 12),
+		createSettingsListTheme(theme),
+		(id, newValue) => {
+			if (id === "default") {
+				current = {
+					...current,
+					visibility: { ...DEFAULT_HUD_SETTINGS.visibility },
+				};
+				for (const key of HUD_VISIBILITY_KEYS) {
+					settingsList.updateValue(
+						key,
+						current.visibility[key] ? "enabled" : "disabled",
+					);
 				}
-				if (!isHudVisibilityKey(id)) return;
-				const enabled = newValue === "enabled";
-				current = setHudVisibility(current, id, enabled);
 				writeProjectHudSettings(projectPath, current);
+				onSettingsChange?.(current);
 				updateVisibilityReloadStatus(ctx, theme, current, originalVisibility);
 				tui.requestRender();
-			},
-			() => done(undefined),
-			{ enableSearch: true },
-		);
-		container.addChild(settingsList);
-		return {
-			render: (width: number) => container.render(width),
-			invalidate: () => container.invalidate(),
-			handleInput: (data: string) => settingsList.handleInput?.(data),
-		};
-	});
+				return;
+			}
+			if (!isHudVisibilityKey(id)) return;
+			const enabled = newValue === "enabled";
+			current = setHudVisibility(current, id, enabled);
+			writeProjectHudSettings(projectPath, current);
+			onSettingsChange?.(current);
+			updateVisibilityReloadStatus(ctx, theme, current, originalVisibility);
+			tui.requestRender();
+		},
+		() => done(formatVisibilitySummary(current)),
+		{ enableSearch: true },
+	);
+	container.addChild(settingsList);
+	return {
+		render: (width: number) => container.render(width),
+		invalidate: () => container.invalidate(),
+		handleInput: (data: string) => {
+			settingsList.handleInput?.(data);
+			tui.requestRender();
+		},
+	};
+}
+
+function formatEnabled(enabled: boolean): string {
+	return enabled ? "enabled" : "disabled";
+}
+
+function formatVisibilitySummary(settings: HudSettings): string {
+	const enabledKeys = HUD_VISIBILITY_KEYS.filter(
+		(key) => settings.visibility[key],
+	);
+	return enabledKeys.length > 0 ? enabledKeys.join("/") : "none";
+}
+
+function formatHudSettingLabel(id: HudSettingsModalEditableId): string {
+	switch (id) {
+		case "mode":
+			return "mode";
+		case "position":
+			return "position";
+		case "shortcut":
+			return "shortcut";
+		case "minimizeShortcut":
+			return "minimize shortcut";
+		case "autoCompactWhileStreaming":
+			return "auto-compact setting";
+		case "startupNotification":
+			return "startup notification setting";
+		case "expandedWidth":
+			return "expanded width";
+		case "compactWidth":
+			return "compact width";
+		case "minTerminalWidth":
+			return "minimum terminal width";
+	}
+}
+
+function formatHudSettingValue(
+	settings: HudSettings,
+	id: HudSettingsModalEditableId,
+): string {
+	switch (id) {
+		case "mode":
+			return settings.mode;
+		case "position":
+			return settings.position;
+		case "shortcut":
+			return settings.shortcut;
+		case "minimizeShortcut":
+			return settings.minimizeShortcut;
+		case "autoCompactWhileStreaming":
+			return formatEnabled(settings.autoCompactWhileStreaming);
+		case "startupNotification":
+			return formatEnabled(settings.startupNotification);
+		case "expandedWidth":
+			return String(settings.expandedWidth);
+		case "compactWidth":
+			return String(settings.compactWidth);
+		case "minTerminalWidth":
+			return String(settings.minTerminalWidth);
+	}
 }
 
 function updateVisibilityReloadStatus(
@@ -545,6 +851,10 @@ function formatVisibilityUpdateMessage(
 	enabled: boolean,
 ): string {
 	return `HUD visibility ${key} ${enabled ? "enabled" : "disabled"}.`;
+}
+
+function getModalUpdateMessage(message: string): string {
+	return message.includes("Run /reload") ? message : withReloadNotice(message);
 }
 
 function withReloadNotice(message: string): string {
