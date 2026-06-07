@@ -1,5 +1,11 @@
 import type { OverlayAnchor } from "@earendil-works/pi-tui";
-import type { HudMode, HudSettings, HudVisibilityKey } from "../types/hud.js";
+import type {
+	HudContextIndicator,
+	HudMode,
+	HudSettings,
+	HudUsageDisplay,
+	HudVisibilityKey,
+} from "../types/hud.js";
 
 export const VALID_POSITIONS = [
 	"center",
@@ -17,6 +23,16 @@ export const HUD_MODES = [
 	"overlay",
 	"footer",
 ] as const satisfies readonly HudMode[];
+
+export const HUD_USAGE_DISPLAYS = [
+	"metered",
+	"subscription",
+] as const satisfies readonly HudUsageDisplay[];
+
+export const HUD_CONTEXT_INDICATORS = [
+	"icon",
+	"bar",
+] as const satisfies readonly HudContextIndicator[];
 
 export const HUD_VISIBILITY_KEYS = [
 	"context",
@@ -46,6 +62,8 @@ export const DEFAULT_HUD_SETTINGS: HudSettings = {
 	minimizeShortcut: "ctrl+h",
 	autoCompactWhileStreaming: true,
 	startupNotification: true,
+	usageDisplay: "metered",
+	contextIndicator: "icon",
 	expandedWidth: 42,
 	compactWidth: 26,
 	minTerminalWidth: 90,

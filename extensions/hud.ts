@@ -203,7 +203,15 @@ export default function (pi: ExtensionAPI) {
 		footerActive = true;
 		ctx.ui.setFooter((tui, theme, footerData) => {
 			footerTui = tui;
-			return new HudFooter(pi, ctx, tui, theme, footerData, subagentStatus);
+			return new HudFooter(
+				pi,
+				ctx,
+				tui,
+				theme,
+				footerData,
+				subagentStatus,
+				settings,
+			);
 		});
 	};
 

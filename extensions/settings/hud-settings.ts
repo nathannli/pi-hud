@@ -21,14 +21,18 @@ import {
 } from "@earendil-works/pi-tui";
 import {
 	DEFAULT_HUD_SETTINGS,
+	HUD_CONTEXT_INDICATORS,
 	HUD_MODES,
+	HUD_USAGE_DISPLAYS,
 	HUD_VISIBILITY_KEYS,
 	HUD_VISIBILITY_LABELS,
 	VALID_POSITIONS,
 } from "../config/hud-settings.js";
 import type {
+	HudContextIndicator,
 	HudMode,
 	HudSettings,
+	HudUsageDisplay,
 	HudVisibility,
 	HudVisibilityKey,
 } from "../types/hud.js";
@@ -125,6 +129,11 @@ function normalizeHudSettings(
 			typeof input.startupNotification === "boolean"
 				? input.startupNotification
 				: base.startupNotification,
+		usageDisplay: normalizeUsageDisplay(input.usageDisplay, base.usageDisplay),
+		contextIndicator: normalizeContextIndicator(
+			input.contextIndicator,
+			base.contextIndicator,
+		),
 		expandedWidth: normalizePositiveInteger(
 			input.expandedWidth,
 			base.expandedWidth,
@@ -159,6 +168,26 @@ function cloneHudSettings(settings: HudSettings): HudSettings {
 function normalizeHudMode(value: unknown, fallback: HudMode): HudMode {
 	return typeof value === "string" && HUD_MODES.includes(value as HudMode)
 		? (value as HudMode)
+		: fallback;
+}
+
+function normalizeUsageDisplay(
+	value: unknown,
+	fallback: HudUsageDisplay,
+): HudUsageDisplay {
+	return typeof value === "string" &&
+		HUD_USAGE_DISPLAYS.includes(value as HudUsageDisplay)
+		? (value as HudUsageDisplay)
+		: fallback;
+}
+
+function normalizeContextIndicator(
+	value: unknown,
+	fallback: HudContextIndicator,
+): HudContextIndicator {
+	return typeof value === "string" &&
+		HUD_CONTEXT_INDICATORS.includes(value as HudContextIndicator)
+		? (value as HudContextIndicator)
 		: fallback;
 }
 
@@ -292,6 +321,25 @@ function updateHudSettingFromArgs(
 			message: `HUD startup notification ${enabled ? "enabled" : "disabled"}.`,
 		};
 	}
+	if (key === "usageDisplay") {
+		const usageDisplay = normalizeUsageDisplay(value, settings.usageDisplay);
+		if (usageDisplay !== value) return undefined;
+		return {
+			settings: { ...settings, usageDisplay },
+			message: `HUD usage display set to ${usageDisplay}.`,
+		};
+	}
+	if (key === "contextIndicator") {
+		const contextIndicator = normalizeContextIndicator(
+			value,
+			settings.contextIndicator,
+		);
+		if (contextIndicator !== value) return undefined;
+		return {
+			settings: { ...settings, contextIndicator },
+			message: `HUD context indicator set to ${contextIndicator}.`,
+		};
+	}
 	if (
 		key === "expandedWidth" ||
 		key === "compactWidth" ||
@@ -315,6 +363,8 @@ type HudSettingsModalEditableId =
 	| "minimizeShortcut"
 	| "autoCompactWhileStreaming"
 	| "startupNotification"
+	| "usageDisplay"
+	| "contextIndicator"
 	| "expandedWidth"
 	| "compactWidth"
 	| "minTerminalWidth";
@@ -539,6 +589,18 @@ function createHudSettingsModalItems(
 			values: ["enabled", "disabled"],
 		},
 		{
+			id: "usageDisplay",
+			label: "Usage display",
+			currentValue: settings.usageDisplay,
+			values: [...HUD_USAGE_DISPLAYS],
+		},
+		{
+			id: "contextIndicator",
+			label: "Context indicator",
+			currentValue: settings.contextIndicator,
+			values: [...HUD_CONTEXT_INDICATORS],
+		},
+		{
 			id: "expandedWidth",
 			label: "Expanded width",
 			currentValue: String(settings.expandedWidth),
@@ -756,6 +818,10 @@ function formatHudSettingLabel(id: HudSettingsModalEditableId): string {
 			return "auto-compact setting";
 		case "startupNotification":
 			return "startup notification setting";
+		case "usageDisplay":
+			return "usage display";
+		case "contextIndicator":
+			return "context indicator";
 		case "expandedWidth":
 			return "expanded width";
 		case "compactWidth":
@@ -782,6 +848,10 @@ function formatHudSettingValue(
 			return formatEnabled(settings.autoCompactWhileStreaming);
 		case "startupNotification":
 			return formatEnabled(settings.startupNotification);
+		case "usageDisplay":
+			return settings.usageDisplay;
+		case "contextIndicator":
+			return settings.contextIndicator;
 		case "expandedWidth":
 			return String(settings.expandedWidth);
 		case "compactWidth":
@@ -862,7 +932,7 @@ function withReloadNotice(message: string): string {
 }
 
 function getHudSettingsUsage(): string {
-	return "Usage: /hud-settings mode|position|shortcut|minimizeShortcut|autoCompactWhileStreaming|startupNotification|expandedWidth|compactWidth|minTerminalWidth <value> or visibility [context|project|worktrees|mcps <on|off>]";
+	return "Usage: /hud-settings mode|position|shortcut|minimizeShortcut|autoCompactWhileStreaming|startupNotification|usageDisplay|contextIndicator|expandedWidth|compactWidth|minTerminalWidth <value> or visibility [context|project|worktrees|mcps <on|off>]";
 }
 
 function parseBoolean(value: string): boolean | undefined {
@@ -897,6 +967,8 @@ function serializeHudSettings(settings: HudSettings): Record<string, unknown> {
 		minimizeShortcut: settings.minimizeShortcut,
 		autoCompactWhileStreaming: settings.autoCompactWhileStreaming,
 		startupNotification: settings.startupNotification,
+		usageDisplay: settings.usageDisplay,
+		contextIndicator: settings.contextIndicator,
 		expandedWidth: settings.expandedWidth,
 		compactWidth: settings.compactWidth,
 		minTerminalWidth: settings.minTerminalWidth,
