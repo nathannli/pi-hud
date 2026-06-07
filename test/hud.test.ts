@@ -1213,14 +1213,15 @@ describe("pi-hud extension", () => {
 		expect(rendered).not.toContain("019e…0fcc");
 	});
 
-	test("footer keeps non-MCP extension statuses and hides duplicate MCP status", async () => {
+	test("footer prefers live MCP extension status over configured MCP fallback", async () => {
 		mockSettingsFile("/repo/project/.pi/settings.json", {
 			hud: { mode: "footer" },
 		});
 		const { eventHandlers, ctx, capturedFooterComponents } = createHarness({
+			mcpAdapter: true,
 			extensionStatuses: new Map([
 				["lsp", "LSP Inactive"],
-				["mcp", "MCP: 0/2 servers"],
+				["mcp", "MCP: 1/5 servers"],
 			]),
 		});
 
@@ -1228,9 +1229,13 @@ describe("pi-hud extension", () => {
 			await handler({ type: "session_start" }, ctx);
 		}
 
-		const rendered = capturedFooterComponents[0]!.render(120).join("\n");
-		expect(rendered).toContain("Status: LSP Inactive");
-		expect(rendered).not.toContain("MCP: 0/2 servers");
+		const rendered = capturedFooterComponents[0]!
+			.render(120)
+			.map(unwrapBg)
+			.join("\n");
+		expect(rendered).toContain("Status: LSP Inactive │ MCP: 1/5 servers");
+		expect(rendered).not.toContain("MCP      2/2 servers");
+		expect(rendered).toContain("Worktree: No worktrees");
 	});
 
 	test("footer shows the current path when linked worktrees exist", async () => {
