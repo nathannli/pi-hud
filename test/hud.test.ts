@@ -295,61 +295,136 @@ describe("pi-hud extension", () => {
 		expect(rendered).toContain("[·] visible agent");
 	});
 
-	test("interactive modules visibility opens toggles, reset default, and one reload status", async () => {
+	test("/hud-settings opens a centered modal, renders rows, persists changes, and cancels cleanly", async () => {
 		const {
 			commands,
 			ctx,
 			custom,
 			notify,
 			select,
-			setStatus,
 			capturedComponents,
-		} = createHarness({
-			selectChoices: ["Modules visibility"],
+			capturedOptions,
+		} = createHarness({ resolveCustom: true });
+
+		await commands.get("hud-settings")!.handler("", ctx);
+
+		expect(select).not.toHaveBeenCalled();
+		expect(custom).toHaveBeenCalledTimes(1);
+		expect(capturedOptions[0]).toMatchObject({ overlay: true });
+		expect(getOverlayOptions(capturedOptions[0])).toMatchObject({
+			anchor: "center",
+			width: 88,
+			maxHeight: "80%",
+		});
+		expect(capturedComponents).toHaveLength(1);
+		const settingsComponent = capturedComponents[0];
+		if (!hasInputHandler(settingsComponent)) {
+			throw new Error("Expected HUD settings modal to handle input.");
+		}
+
+		const rendered = settingsComponent.render(88).join("\n");
+		expect(rendered).toContain("HUD Settings");
+		expect(rendered).toContain("Mode");
+		expect(rendered).toContain("overlay");
+		expect(rendered).toContain("Position");
+		expect(rendered).toContain("Shortcut");
+		expect(rendered).toContain("Minimize shortcut");
+		expect(rendered).toContain("Auto-compact while streaming");
+		expect(rendered).toContain("Startup notification");
+		expect(rendered).toContain("Expanded width");
+		expect(rendered).toContain("Compact width");
+		expect(rendered).toContain("Min terminal width");
+		expect(rendered).toContain("Modules visibility");
+		expect(rendered).toContain("Show current");
+		expect(rendered).toContain("Restore defaults");
+		expect(rendered).toContain("Back");
+
+		settingsComponent.handleInput(" ");
+		expect(writeFileSync).toHaveBeenCalledWith(
+			"/repo/project/.pi/settings.json",
+			expect.stringContaining('"mode": "footer"'),
+			"utf8",
+		);
+		expect(notify).toHaveBeenCalledWith(
+			"HUD mode set to footer. Run /reload for the change to take effect.",
+			"info",
+		);
+
+		vi.mocked(writeFileSync).mockClear();
+		settingsComponent.handleInput("\x1b[B");
+		settingsComponent.handleInput("\x1b[B");
+		settingsComponent.handleInput(" ");
+		settingsComponent.handleInput("r");
+		expect(writeFileSync).not.toHaveBeenCalled();
+
+		vi.mocked(writeFileSync).mockClear();
+		const cancelHarness = createHarness({ resolveCustom: true });
+		await cancelHarness.commands
+			.get("hud-settings")!
+			.handler("", cancelHarness.ctx);
+		const cancelComponent = cancelHarness.capturedComponents[0];
+		if (!hasInputHandler(cancelComponent)) {
+			throw new Error("Expected HUD settings modal to handle input.");
+		}
+		cancelComponent.handleInput("\x1b");
+		expect(writeFileSync).not.toHaveBeenCalled();
+	});
+
+	test("/hud-settings input submenus save typed replacements", async () => {
+		const { commands, ctx, capturedComponents } = createHarness({
 			resolveCustom: true,
 		});
 
 		await commands.get("hud-settings")!.handler("", ctx);
-
-		expect(select).toHaveBeenCalledWith(
-			"HUD settings",
-			expect.arrayContaining(["Modules visibility"]),
-		);
-		expect(custom).toHaveBeenCalledTimes(1);
-		expect(capturedComponents).toHaveLength(1);
-		const visibilityComponent = capturedComponents[0];
-		if (!hasInputHandler(visibilityComponent)) {
-			throw new Error("Expected Modules visibility component to handle input.");
+		const settingsComponent = capturedComponents[0];
+		if (!hasInputHandler(settingsComponent)) {
+			throw new Error("Expected HUD settings modal to handle input.");
 		}
 
-		const rendered = visibilityComponent.render(60).join("\n");
-		expect(rendered).toContain("Modules visibility");
-		expect(rendered).toContain("Context");
-		expect(rendered).toContain("Project path + Branches");
-		expect(rendered).toContain("Worktrees");
-		expect(rendered).toContain("Configured MCPs");
-		expect(rendered).toContain("Default settings");
-		expect(rendered).not.toContain("Subagents");
+		for (let index = 0; index < 6; index += 1) {
+			settingsComponent.handleInput("\x1b[B");
+		}
+		settingsComponent.handleInput(" ");
+		settingsComponent.handleInput("5");
+		settingsComponent.handleInput("6");
+		settingsComponent.handleInput("\n");
 
-		visibilityComponent.handleInput(" ");
 		expect(writeFileSync).toHaveBeenCalledWith(
 			"/repo/project/.pi/settings.json",
-			expect.stringContaining('"context": false'),
+			expect.stringContaining('"expandedWidth": 56'),
 			"utf8",
 		);
-		expect(notify).not.toHaveBeenCalledWith(
-			expect.stringContaining("Run /reload"),
-			"warning",
+		expect(writeFileSync).not.toHaveBeenCalledWith(
+			"/repo/project/.pi/settings.json",
+			expect.stringContaining('"expandedWidth": 5642'),
+			"utf8",
+		);
+	});
+
+	test("/hud-settings restore defaults marks visibility reload when modules change", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { visibility: { context: false } },
+		});
+		const { commands, ctx, setStatus, capturedComponents } = createHarness({
+			resolveCustom: true,
+		});
+
+		await commands.get("hud-settings")!.handler("", ctx);
+		const settingsComponent = capturedComponents[0];
+		if (!hasInputHandler(settingsComponent)) {
+			throw new Error("Expected HUD settings modal to handle input.");
+		}
+
+		settingsComponent.handleInput("r");
+
+		expect(writeFileSync).toHaveBeenCalledWith(
+			"/repo/project/.pi/settings.json",
+			expect.stringContaining('"context": true'),
+			"utf8",
 		);
 		expect(setStatus).toHaveBeenCalledWith(
 			"pi-hud.modules-visibility.reload",
 			expect.stringContaining("Run /reload"),
-		);
-
-		visibilityComponent.handleInput(" ");
-		expect(setStatus).toHaveBeenLastCalledWith(
-			"pi-hud.modules-visibility.reload",
-			undefined,
 		);
 	});
 

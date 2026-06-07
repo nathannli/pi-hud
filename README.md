@@ -121,7 +121,7 @@ Run `/hud` again, or press `ctrl+shift+h`, to hide or show the overlay. Press `c
 | --- | --- |
 | `/hud` | Toggle the overlay HUD. |
 | `/hud-mode` | Toggle between `overlay` and `footer`, or set one explicitly with `/hud-mode footer` and `/hud-mode overlay`. |
-| `/hud-settings` | Configure mode, position, shortcuts, startup notification, auto-compact, sizing, and Modules visibility. |
+| `/hud-settings` | Open the HUD Settings modal for mode, position, shortcuts, startup notification, auto-compact, sizing, Modules visibility, current settings, and defaults. |
 
 ## Settings
 
@@ -155,6 +155,8 @@ Defaults:
 Supported `position` values are `center`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, `top-center`, `bottom-center`, `left-center`, and `right-center`.
 
 `mode` controls where Pi HUD renders. `overlay` is the default right-side HUD. `footer` replaces Pi's built-in footer with Pi HUD's compact multi-line footer. You can persist it in settings or switch immediately with `/hud-mode footer` and `/hud-mode overlay`.
+
+Run `/hud-settings` with no arguments to open the centered HUD Settings modal. The modal shows current values, lets you edit settings, shows the current serialized configuration, and can restore defaults. Argument-based commands such as `/hud-settings mode footer` and `/hud-settings visibility context off` remain available for direct updates.
 
 `startupNotification` controls the UI-only startup notification shown when `pi-hud` loads in an interactive session. It defaults to `true`, skips `/reload`, and can be disabled when you want a quieter startup. The notice is rendered with Pi's notification UI instead of a session message, so it does not add HUD text to the agent prompt context. When packaged release metadata is available, the startup notice includes the latest release commits once per version and records that marker in Pi's user state directory. The footer mode discovery tip is also shown once per packaged version and stored in the same state file.
 
