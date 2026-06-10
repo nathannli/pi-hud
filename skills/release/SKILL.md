@@ -1,6 +1,6 @@
 ---
 name: pi-hud-release
-description: "Trigger: release pi-hud, publish, npm publish, version bump, changelog, changeset, release tag. Release pi-hud through its pinned Changesets and GitHub tag workflow."
+description: "Trigger: release pi-hud, publish, npm publish, version bump, changelog, changeset, release tag. Release pi-hud through an approved release issue, pinned Changesets, and the GitHub tag workflow."
 license: MIT
 metadata:
   author: ludevdot
@@ -14,6 +14,8 @@ Use this skill when preparing, publishing, or verifying a `pi-hud` release.
 ## Hard Rules
 
 - First read `RELEASING.md`; it is the source of truth for the release checklist.
+- Do not prepare, open, merge, tag, or publish a release without a GitHub issue that has `status:approved`.
+- The release PR MUST link the approved release issue. If no approved release issue exists, stop and create or request approval for one before continuing.
 - Do not publish `pi-hud` to npm from a local machine.
 - Publishing MUST go through `.github/workflows/publish.yml` via `v-<version>-RELEASE` tag or manual workflow dispatch.
 - Use the pinned `@changesets/cli` version in `package.json`; do not upgrade or use a floating version unless explicitly requested.
@@ -27,6 +29,8 @@ Use this skill when preparing, publishing, or verifying a `pi-hud` release.
 
 | Situation                                     | Action                                                                      |
 | --------------------------------------------- | --------------------------------------------------------------------------- |
+| No approved release issue is selected         | Stop; create or choose a GitHub issue and verify it has `status:approved`.  |
+| Release PR does not link the approved issue   | Stop; fix the PR body before merge, tag, or publish.                        |
 | No changeset exists for a user-visible change | Run `pnpm changeset` before release preparation.                            |
 | Pending changesets exist                      | Run `pnpm version:changeset` and review `package.json` plus `CHANGELOG.md`. |
 | `npm view pi-hud@<version>` returns a version | Stop; do not tag an already-published version.                              |
@@ -43,14 +47,22 @@ Use this skill when preparing, publishing, or verifying a `pi-hud` release.
    git tag --list 'v-*-RELEASE' --sort=-creatordate | head
    ```
 
-2. Prepare version and changelog:
+2. Resolve the release issue gate:
+
+   ```bash
+   gh issue view <issue-number> --json number,title,state,labels,url
+   ```
+
+   Continue only when the issue is open or intentionally selected by the maintainer and has `status:approved`. Record the issue number and link it from the release PR body. If no issue exists, create a release tracking issue first and stop until it is approved.
+
+3. Prepare version and changelog:
 
    ```bash
    pnpm install --frozen-lockfile
    pnpm version:changeset
    ```
 
-3. Generate packaged release metadata for the startup notice:
+4. Generate packaged release metadata for the startup notice:
 
    ```bash
    VERSION=$(node -p "require('./package.json').version")
@@ -60,19 +72,19 @@ Use this skill when preparing, publishing, or verifying a `pi-hud` release.
 
    The generated metadata should be committed with the release prep and packaged with npm, for example as `assets/release-notes.json`. It should include the new package version, previous release tag/version when available, generation timestamp, and commit list from `$PREVIOUS_TAG..HEAD`. Runtime code should read this static file instead of calling git, npm, or GitHub.
 
-4. Verify the target version is unpublished:
+5. Verify the target version is unpublished:
 
    ```bash
    npm view "pi-hud@$VERSION" version --registry=https://registry.npmjs.org/ || true
    ```
 
-5. Validate locally:
+6. Validate locally:
 
    ```bash
    pnpm release:check
    ```
 
-6. Commit and push the release preparation:
+7. Commit and push the release preparation:
 
    ```bash
    git add package.json pnpm-lock.yaml CHANGELOG.md assets/release-notes.json .changeset
@@ -80,7 +92,7 @@ Use this skill when preparing, publishing, or verifying a `pi-hud` release.
    git push origin HEAD
    ```
 
-7. After the release PR is merged, tag the exact release commit:
+8. After the release PR is merged, tag the exact release commit:
 
    ```bash
    TAG="v-$VERSION-RELEASE"
@@ -88,7 +100,7 @@ Use this skill when preparing, publishing, or verifying a `pi-hud` release.
    git push origin "$TAG"
    ```
 
-8. Watch publish and verify npm/Pi availability.
+9. Watch publish and verify npm/Pi availability.
 
 ## Packaged Release Metadata Contract
 

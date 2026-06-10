@@ -30,34 +30,38 @@ Write the summary for users, not only maintainers.
 ## Prepare a release
 
 1. Start from a clean `main` branch.
-2. Install with the pinned package manager:
+2. Resolve the release issue gate:
+   - every release needs a GitHub issue with `status:approved` before release prep starts;
+   - the release PR must link that approved issue;
+   - if no approved release issue exists, create one and stop until it is approved.
+3. Install with the pinned package manager:
    ```bash
    pnpm install --frozen-lockfile
    ```
-3. Apply pending changesets:
+4. Apply pending changesets:
    ```bash
    pnpm version:changeset
    ```
-4. Review the generated changes:
+5. Review the generated changes:
    - `package.json` version;
    - `CHANGELOG.md` entry;
    - removed `.changeset/*.md` files.
-5. Confirm the target version is not already published:
+6. Confirm the target version is not already published:
    ```bash
    VERSION=$(node -p "require('./package.json').version")
    npm view "pi-hud@$VERSION" version --registry=https://registry.npmjs.org/ || true
    ```
    Continue only if npm does not return that exact version.
-6. Run the release check:
+7. Run the release check:
    ```bash
    pnpm release:check
    ```
-7. Commit the release changes:
+8. Commit the release changes:
    ```bash
    git add package.json pnpm-lock.yaml CHANGELOG.md .changeset
    git commit -m "chore(release): vX.Y.Z"
    ```
-8. Tag using the publish workflow convention:
+9. Tag using the publish workflow convention:
    ```bash
    git tag v-X.Y.Z-RELEASE
    git push origin main --tags
@@ -80,4 +84,4 @@ Before using the manual workflow, confirm that:
 - Verify the npm package page shows the expected version.
 - Verify the Pi package listing still renders the package image.
 - Confirm `pi install npm:pi-hud` works in a clean Pi environment when practical.
-- Close the release issue or milestone if one was used.
+- Close the approved release issue or milestone used for the release.
