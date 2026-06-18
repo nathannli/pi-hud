@@ -66,7 +66,8 @@ export type HudVisibilityKey =
 	| "project"
 	| "worktrees"
 	| "mcps"
-	| "timer";
+	| "timer"
+	| "chatgptLimit";
 
 export type HudVisibility = Record<HudVisibilityKey, boolean>;
 

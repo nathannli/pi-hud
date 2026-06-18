@@ -40,6 +40,7 @@ export const HUD_VISIBILITY_KEYS = [
 	"worktrees",
 	"mcps",
 	"timer",
+	"chatgptLimit",
 ] as const satisfies readonly HudVisibilityKey[];
 
 export const DEFAULT_HUD_VISIBILITY = {
@@ -48,6 +49,7 @@ export const DEFAULT_HUD_VISIBILITY = {
 	worktrees: true,
 	mcps: true,
 	timer: true,
+	chatgptLimit: true,
 } satisfies HudSettings["visibility"];
 
 export const HUD_VISIBILITY_LABELS = {
@@ -56,6 +58,7 @@ export const HUD_VISIBILITY_LABELS = {
 	worktrees: "Worktrees",
 	mcps: "Configured MCPs",
 	timer: "Run timer",
+	chatgptLimit: "ChatGPT limits",
 } satisfies Record<HudVisibilityKey, string>;
 
 export const DEFAULT_HUD_SETTINGS: HudSettings = {

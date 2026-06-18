@@ -14,6 +14,9 @@ import {
 	visibleWidth,
 } from "@earendil-works/pi-tui";
 import { basename } from "node:path";
+import { isOpenAICodexProvider } from "../chatgpt-limit/auth.js";
+import { formatChatGptLimitFooterUsage } from "../chatgpt-limit/format.js";
+import type { ChatGptLimitState } from "../chatgpt-limit/types.js";
 import {
 	getGitPowerlineInfo,
 	getGitWorktrees,
@@ -59,6 +62,7 @@ export class HudFooter implements Component {
 		private subagentStatus: SubagentStatus,
 		private runStatus: RunStatus,
 		private settings: HudSettings,
+		private chatGptLimitState: ChatGptLimitState,
 	) {
 		this.unsubscribeBranchChange = this.footerData.onBranchChange(() =>
 			this.tui.requestRender(),
@@ -99,6 +103,11 @@ export class HudFooter implements Component {
 		);
 		const modelLabel = getModelLabel(this.ctx.model);
 		const thinkingLabel = getThinkingLabel(this.pi, this.ctx.model);
+		const chatGptLimitUsage =
+			this.settings.visibility.chatgptLimit &&
+			isOpenAICodexProvider(this.ctx.model?.provider)
+				? formatChatGptLimitFooterUsage(this.chatGptLimitState, this.theme)
+				: undefined;
 		const contextLine = formatContextLine({
 			usageDisplay: this.settings.usageDisplay,
 			contextTokens,
@@ -107,6 +116,7 @@ export class HudFooter implements Component {
 			modelLabel,
 			thinkingLabel,
 			cost: stats.cost,
+			chatGptLimitUsage,
 			runTimerSuffix: this.settings.visibility.timer
 				? formatRunTimerSuffix(this.runStatus)
 				: null,
@@ -207,22 +217,26 @@ function formatContextLine(options: {
 	contextWindow: number;
 	modelLabel: string;
 	thinkingLabel: string | null;
+	chatGptLimitUsage: string | undefined;
 	cost: number;
 	runTimerSuffix: string | null;
 }): string {
 	const contextUsage = `${options.contextIndicatorText} used/${formatNumber(options.contextWindow)} ctx`;
+	const chatGptLimitSegment = options.chatGptLimitUsage
+		? ` │ ${options.chatGptLimitUsage}`
+		: "";
 	const runTimerSuffix = options.runTimerSuffix ?? "";
 	if (options.usageDisplay === "subscription") {
 		const thinkingSuffix = options.thinkingLabel
 			? ` / ${formatSubscriptionThinkingLabel(options.thinkingLabel)}`
 			: "";
-		return `▏ 🧠 Context  ${contextUsage} │ ${options.modelLabel}${thinkingSuffix}${runTimerSuffix}`;
+		return `▏ 🧠 Context  ${contextUsage} │ ${options.modelLabel}${thinkingSuffix}${chatGptLimitSegment}${runTimerSuffix}`;
 	}
 
 	const thinkingSegment = options.thinkingLabel
 		? ` │ ${options.thinkingLabel}`
 		: "";
-	return `▏ 🧠 Context  ${formatContextTokens(options.contextTokens)} tokens │ ${contextUsage} │ ${options.modelLabel}${thinkingSegment} │ $${options.cost.toFixed(5)} spent${runTimerSuffix}`;
+	return `▏ 🧠 Context  ${formatContextTokens(options.contextTokens)} tokens │ ${contextUsage} │ ${options.modelLabel}${thinkingSegment}${chatGptLimitSegment} │ $${options.cost.toFixed(5)} spent${runTimerSuffix}`;
 }
 
 function formatRunTimerSuffix(runStatus: RunStatus): string | null {

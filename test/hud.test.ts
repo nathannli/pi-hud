@@ -97,6 +97,7 @@ afterEach(() => {
 	fsMockState.releaseNotes = undefined;
 	fsMockState.releaseNotesState = undefined;
 	delete process.env.PI_CODING_AGENT_DIR;
+	vi.unstubAllGlobals();
 	vi.mocked(spawnSync).mockImplementation(
 		(_command, args) =>
 			(Array.isArray(args) && args.includes("status")
@@ -166,6 +167,45 @@ function unwrapBg(line: string): string {
 		.replace(/<\/?(?:accent|warning|error|dim|bold)>/g, "");
 }
 
+function encodeBase64Url(value: unknown): string {
+	return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function fakeJwt(payload: Record<string, unknown>): string {
+	return `${encodeBase64Url({ alg: "none" })}.${encodeBase64Url(payload)}.`;
+}
+
+function mockChatGptUsageFetch({
+	fiveHourUsed = 25,
+	weeklyUsed = 42,
+	planType = "pro",
+}: {
+	fiveHourUsed?: number;
+	weeklyUsed?: number;
+	planType?: string;
+} = {}): ReturnType<typeof vi.fn> {
+	const fetchMock = vi.fn(async () => ({
+		ok: true,
+		json: async () => ({
+			plan_type: planType,
+			rate_limit: {
+				primary_window: {
+					used_percent: fiveHourUsed,
+					limit_window_seconds: 5 * 60 * 60,
+					reset_at: Math.floor(Date.now() / 1000) + 2 * 60 * 60,
+				},
+				secondary_window: {
+					used_percent: weeklyUsed,
+					limit_window_seconds: 7 * 24 * 60 * 60,
+					reset_at: Math.floor(Date.now() / 1000) + 2 * 24 * 60 * 60,
+				},
+			},
+		}),
+	}));
+	vi.stubGlobal("fetch", fetchMock);
+	return fetchMock;
+}
+
 describe("pi-hud extension", () => {
 	test("loads default mode and visibility and safely merges supported keys only", () => {
 		process.env.PI_CODING_AGENT_DIR = "/agent";
@@ -180,6 +220,7 @@ describe("pi-hud extension", () => {
 				worktrees: true,
 				mcps: true,
 				timer: true,
+				chatgptLimit: true,
 			},
 		});
 		mockSettingsFile("/agent/settings.json", {
@@ -207,6 +248,7 @@ describe("pi-hud extension", () => {
 				worktrees: true,
 				mcps: false,
 				timer: true,
+				chatgptLimit: true,
 			},
 		});
 		mockSettingsFile("/agent/settings.json", {
@@ -269,6 +311,85 @@ describe("pi-hud extension", () => {
 			.get("hud-settings")!
 			.handler("visibility context maybe", ctx);
 		expect(writeFileSync).not.toHaveBeenCalled();
+	});
+
+	test("/chatgpt-limit fetches and reports Codex usage details", async () => {
+		const fetchMock = mockChatGptUsageFetch();
+		const token = fakeJwt({
+			"https://api.openai.com/auth": {
+				chatgpt_account_id: "account-123",
+				chatgpt_plan_type: "pro-token",
+			},
+			"https://api.openai.com/profile": { email: "dev@example.com" },
+		});
+		const { commands, ctx, select } = createHarness({
+			provider: "openai-codex",
+			apiKey: token,
+			selectChoices: ["Show current usage details"],
+		});
+
+		await commands.get("chatgpt-limit")!.handler("", ctx);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://chatgpt.com/backend-api/wham/usage",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Authorization: `Bearer ${token}`,
+					"chatgpt-account-id": "account-123",
+				}),
+			}),
+		);
+		expect(select).toHaveBeenLastCalledWith(
+			"ChatGPT Codex usage limits",
+			expect.arrayContaining([
+				"plan: pro",
+				"email: dev@example.com",
+				expect.stringContaining("5-hour: 25% used"),
+				expect.stringContaining("weekly: 42% used"),
+			]),
+		);
+	});
+
+	test("footer shows fetched ChatGPT weekly limit for openai-codex", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		mockChatGptUsageFetch();
+		const { commands, ctx, eventHandlers, capturedFooterComponents } = createHarness({
+			provider: "openai-codex",
+			apiKey: fakeJwt({}),
+			selectChoices: ["Show current usage details"],
+		});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+		await commands.get("chatgpt-limit")!.handler("", ctx);
+
+		const rendered = capturedFooterComponents.at(-1)!.render(200).join("\n");
+		expect(rendered).toContain("W 42%");
+	});
+
+	test("/chatgpt-limit persists HUD footer display settings", async () => {
+		process.env.PI_CODING_AGENT_DIR = "/agent";
+		const { commands, ctx, notify } = createHarness({
+			selectChoices: [
+				"Configure HUD footer display mode",
+				"Remaining percent, e.g. W 58% left",
+			],
+		});
+
+		await commands.get("chatgpt-limit")!.handler("", ctx);
+
+		expect(writeFileSync).toHaveBeenCalledWith(
+			"/agent/chatgpt-limit.json",
+			expect.stringContaining('"displayMode": "remaining"'),
+			"utf8",
+		);
+		expect(notify).toHaveBeenCalledWith(
+			"ChatGPT limit display mode: Remaining percent, e.g. W 58% left",
+			"info",
+		);
 	});
 
 	test("omits hidden expanded and compact HUD items while keeping subagents", async () => {

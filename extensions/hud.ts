@@ -8,6 +8,14 @@ import type {
 	OverlayOptions,
 	TUI,
 } from "@earendil-works/pi-tui";
+import { registerChatGptLimitCommand } from "./chatgpt-limit/command.js";
+import { DEFAULT_CHATGPT_LIMIT_CONFIG } from "./chatgpt-limit/constants.js";
+import { readChatGptLimitConfig } from "./chatgpt-limit/config.js";
+import type {
+	ChatGptLimitSnapshot,
+	ChatGptLimitState,
+} from "./chatgpt-limit/types.js";
+import { updateChatGptUsage } from "./chatgpt-limit/usage.js";
 import { HudComponent } from "./components/hud-component.js";
 import { HudFooter } from "./components/hud-footer.js";
 import {
@@ -34,6 +42,7 @@ import type {
 	AgentStatus,
 	HudMode,
 	HudSettings,
+	RunStatus,
 	SubagentRunCounts,
 	SubagentStatus,
 } from "./types/hud.js";
@@ -63,6 +72,12 @@ export default function (pi: ExtensionAPI) {
 	let completedSubagentToolRuns = 0;
 	let failedSubagentToolRuns = 0;
 	const runStatus: RunStatus = { startedAt: null, lastDurationMs: 0 };
+	const chatGptLimitState: ChatGptLimitState = {
+		usageSnapshot: undefined,
+		footerConfig: { ...DEFAULT_CHATGPT_LIMIT_CONFIG },
+	};
+	let chatGptLimitInFlight: Promise<ChatGptLimitSnapshot | undefined> =
+		Promise.resolve(undefined);
 
 	const clearRefreshTimer = () => {
 		if (refreshTimer === null) return;
@@ -88,6 +103,21 @@ export default function (pi: ExtensionAPI) {
 	const requestHudRender = () => {
 		hudTui?.requestRender();
 		footerTui?.requestRender();
+	};
+
+	const queueChatGptLimitUpdate = (ctx: ExtensionContext) => {
+		chatGptLimitInFlight = chatGptLimitInFlight
+			.catch(() => undefined)
+			.then(() => updateChatGptUsage(ctx, chatGptLimitState))
+			.then((snapshot) => {
+				requestHudRender();
+				return snapshot;
+			});
+		return chatGptLimitInFlight;
+	};
+
+	const queueChatGptLimitUpdateInBackground = (ctx: ExtensionContext) => {
+		queueChatGptLimitUpdate(ctx).catch(() => undefined);
 	};
 
 	const isCompact = (settings: HudSettings) =>
@@ -169,6 +199,7 @@ export default function (pi: ExtensionAPI) {
 							subagentStatus,
 							runStatus,
 							settings,
+							chatGptLimitState,
 							() => isCompact(settings),
 						);
 					},
@@ -214,6 +245,7 @@ export default function (pi: ExtensionAPI) {
 				subagentStatus,
 				runStatus,
 				settings,
+				chatGptLimitState,
 			);
 		});
 	};
@@ -294,13 +326,14 @@ export default function (pi: ExtensionAPI) {
 		requestHudRender();
 	});
 
-	pi.on("agent_end", () => {
+	pi.on("agent_end", (_event, ctx) => {
 		agentStatus.running = Math.max(0, agentStatus.running - 1);
 		agentStatus.completed++;
 		if (runStatus.startedAt !== null) {
 			runStatus.lastDurationMs = Date.now() - runStatus.startedAt;
 		}
 		runStatus.startedAt = null;
+		if (ctx) queueChatGptLimitUpdateInBackground(ctx);
 		requestHudRender();
 	});
 
@@ -316,7 +349,8 @@ export default function (pi: ExtensionAPI) {
 		requestHudRender();
 	});
 
-	pi.on("model_select", () => {
+	pi.on("model_select", (_event, ctx) => {
+		if (ctx) queueChatGptLimitUpdateInBackground(ctx);
 		requestHudRender();
 	});
 
@@ -370,9 +404,11 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", (event, ctx) => {
+		chatGptLimitState.footerConfig = readChatGptLimitConfig();
 		const settings = readHudSettings(getProjectPath(ctx));
 		applyHudMode(ctx, settings);
 		notifySessionStart(event, ctx);
+		queueChatGptLimitUpdateInBackground(ctx);
 	});
 
 	pi.on("session_shutdown", (_event, ctx) => {
@@ -388,6 +424,7 @@ export default function (pi: ExtensionAPI) {
 		failedSubagentToolRuns = 0;
 		runStatus.startedAt = null;
 		runStatus.lastDurationMs = 0;
+		chatGptLimitState.usageSnapshot = undefined;
 		recalculateSubagentStatus();
 	});
 
@@ -404,6 +441,13 @@ export default function (pi: ExtensionAPI) {
 			await handleHudSettingsCommand(args, ctx);
 		},
 	});
+
+	registerChatGptLimitCommand(
+		pi,
+		chatGptLimitState,
+		queueChatGptLimitUpdate,
+		requestHudRender,
+	);
 
 	pi.registerCommand("hud-mode", {
 		description: "Switch Pi HUD between overlay and footer mode",

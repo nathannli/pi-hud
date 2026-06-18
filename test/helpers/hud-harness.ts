@@ -60,6 +60,8 @@ interface HarnessOptions {
 	sessionId?: string;
 	modelReasoning?: boolean;
 	thinkingLevel?: string;
+	provider?: string;
+	apiKey?: string;
 }
 
 export function createHarness(options: HarnessOptions = {}): HudHarness {
@@ -108,6 +110,11 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 	const selectChoices = [...(options.selectChoices ?? [])];
 	const inputValues = [...(options.inputValues ?? [])];
 	const select = vi.fn(async () => selectChoices.shift());
+	const getApiKeyAndHeaders = vi.fn(async () =>
+		options.apiKey
+			? { ok: true, apiKey: options.apiKey }
+			: { ok: false, error: "missing" },
+	);
 	const input = vi.fn(async () => inputValues.shift());
 	const custom = vi.fn(
 		(
@@ -219,9 +226,14 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 			getCwd: () => "/repo/project",
 			getBranch: () => [{ type: "message", message: assistantMessage }],
 		} as unknown as ExtensionCommandContext["sessionManager"],
+		modelRegistry: {
+			getApiKeyAndHeaders,
+			isUsingOAuth: () => Boolean(options.apiKey),
+		},
 		model: {
 			id: "model-id",
 			name: options.modelName ?? "Model Name",
+			provider: options.provider,
 			reasoning: options.modelReasoning ?? true,
 			contextWindow,
 		},

@@ -8,6 +8,9 @@ import type {
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import { basename } from "node:path";
+import { isOpenAICodexProvider } from "../chatgpt-limit/auth.js";
+import { formatChatGptLimitFooterUsage } from "../chatgpt-limit/format.js";
+import type { ChatGptLimitState } from "../chatgpt-limit/types.js";
 import {
 	getGitBranch,
 	getGitPowerlineInfo,
@@ -38,6 +41,7 @@ export class HudComponent implements Component {
 		private subagentStatus: SubagentStatus,
 		private runStatus: RunStatus,
 		private settings: HudSettings,
+		private chatGptLimitState: ChatGptLimitState,
 		private isCompact: () => boolean,
 	) {}
 
@@ -84,6 +88,11 @@ export class HudComponent implements Component {
 		const lines: string[] = [];
 		const modelLabel = getModelLabel(model);
 		const thinkingLabel = getThinkingLabel(this.pi, model);
+		const chatGptLimitLabel =
+			this.settings.visibility.chatgptLimit &&
+			isOpenAICodexProvider(model?.provider)
+				? formatChatGptLimitFooterUsage(this.chatGptLimitState)
+				: undefined;
 		const contextLabel =
 			contextPercent === null
 				? "ctx unknown"
@@ -132,6 +141,13 @@ export class HudComponent implements Component {
 			);
 			if (compactTimerLine) {
 				this.pushLine(lines, innerWidth, compactTimerLine);
+			}
+			if (chatGptLimitLabel) {
+				this.pushLine(
+					lines,
+					innerWidth,
+					`⚡ ${this.theme.fg("dim", chatGptLimitLabel)}`,
+				);
 			}
 			this.pushBottomBorder(lines, innerWidth);
 			return lines;
@@ -221,6 +237,38 @@ export class HudComponent implements Component {
 				lines,
 				innerWidth,
 				formatRunTimerLine(this.theme, this.runStatus),
+			);
+		}
+
+		if (
+			this.settings.visibility.chatgptLimit &&
+			isOpenAICodexProvider(model?.provider)
+		) {
+			this.pushSection(lines, innerWidth, "ChatGPT limits");
+			if (chatGptLimitLabel) {
+				this.pushLine(
+					lines,
+					innerWidth,
+					this.theme.fg("dim", chatGptLimitLabel),
+				);
+			} else {
+				this.pushLine(
+					lines,
+					innerWidth,
+					this.theme.fg("dim", "usage unavailable"),
+				);
+			}
+			if (this.chatGptLimitState.usageSnapshot?.planType) {
+				this.pushLine(
+					lines,
+					innerWidth,
+					`plan ${this.chatGptLimitState.usageSnapshot.planType}`,
+				);
+			}
+			this.pushLine(
+				lines,
+				innerWidth,
+				this.theme.fg("dim", "/chatgpt-limit details"),
 			);
 		}
 
