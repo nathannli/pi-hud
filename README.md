@@ -8,7 +8,7 @@
 [![license](https://img.shields.io/npm/l/pi-hud?color=blue)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/ludevdot/pi-hud?style=flat&color=yellow)](https://github.com/ludevdot/pi-hud/stargazers)
 
-> **Fork:** This fork of [ludevdot/pi-hud](https://github.com/ludevdot/pi-hud) adds an **agent prompt timer** — a per-run clock that shows how long the current agent prompt has been running (inspired by [`pi-timer`](https://github.com/jojopirker/pi-timer)). The timer is built into the HUD because running `pi-hud` in footer mode irreversibly removes the separate `pi-timer` extension for the entire session.
+> **Fork:** This fork of [ludevdot/pi-hud](https://github.com/ludevdot/pi-hud) adds an **agent prompt timer** and expanded **GitHub/Git powerline info**. The timer is a per-run clock that shows how long the current agent prompt has been running (inspired by [`pi-timer`](https://github.com/jojopirker/pi-timer)). Git/GitHub status adds the repository slug, branch, ahead/behind counts, and compact working-tree indicators. The timer is built into the HUD because running `pi-hud` in footer mode irreversibly removes the separate `pi-timer` extension for the entire session.
 
 Persistent HUD for [Pi](https://pi.dev), published as a Pi package at [pi.dev/packages/pi-hud](https://pi.dev/packages/pi-hud?name=hud).
 
@@ -37,7 +37,7 @@ It can run as the default right-side overlay or as an opt-in footer replacement.
   - token/context count when available.
 - Session context usage, cost, active model, and reasoning/thinking level when the selected model supports it.
 - Live run timer that mirrors [`pi-timer`](https://github.com/jojopirker/pi-timer): `runs for X` while the agent is running and `ran for X` after the run ends, with the same `Xs` / `Xm YYs` / `Xh YYm` thresholds. Shown on the footer context line, in the expanded overlay's `Timer` section, and as a single `⏱` line in the compact overlay.
-- Project path, current git branch, and git status indicators.
+- Project path plus GitHub/Git powerline details: repository slug, current branch, ahead/behind counts, conflicts, staged/unstaged/untracked counts, and clean/dirty/conflict status indicators.
 - Registered git worktrees when the repository has more than one worktree.
 - Configured MCP server names when `pi-mcp-adapter` is installed.
 - Opt-in footer mode with compact multi-line status, full-line background styling, and emoji indicators for project, context, MCP, help, git status, and context pressure.
@@ -198,7 +198,7 @@ Footer mode is opt-in because it replaces Pi's built-in footer. Use it when you 
 The footer renders five compact lines:
 
 ```text
-▏ 📁 Project  Pi-hud /Users/ludev/projectes/pi-hud 🟢 (main)
+▏ 📁 Project  Pi-hud /Users/ludev/projectes/pi-hud │ GitHub: ludevdot/pi-hud │ Git: 🟢 main
 ▏ 🧠 Context  12.0k tokens │ 🟢 6.0% used/200.0k ctx │ Claude Sonnet │ thinking: medium │ $0.01000 spent │ ⏱ runs for 1m 23s
 ▏ 🔌 MCP      2/4 servers │ Worktree: No worktrees
 ▏ ❔ Help     /hud-mode │ /hud-settings │ 🔗 docs │ Status: LSP Inactive
@@ -215,13 +215,30 @@ When the project has exactly one active OpenSpec change, the help line becomes a
 
 The SDD hint appears only when `openspec/config.yaml` and a single `openspec/changes/<change-id>` directory are present. It stays one line, shortens before truncation in narrow terminals, and omits itself rather than guessing when multiple active changes exist.
 
+Git/GitHub powerline details appear in the project row. When `remote.origin.url` points at GitHub, the footer includes the `owner/repo` slug. The `Git:` segment uses the current branch or `detached@<sha>` plus compact repository state:
+
+```text
+Git: 🟡 feature/status ↑2 ↓1 +1 ~3 ?2
+```
+
 Git status indicators:
 
-| Indicator | Meaning | Branch suffix |
+| Indicator | Meaning | Details |
 | --- | --- | --- |
 | `🟢` | Clean working tree | none |
-| `🟡` | Uncommitted changes | `*` |
-| `🔴` | Merge/conflict state | `!` |
+| `🟡` | Uncommitted changes | count suffixes show what changed |
+| `🔴` | Merge/conflict state | `!N` conflict count |
+
+Git suffixes:
+
+| Suffix | Meaning |
+| --- | --- |
+| `↑N` | commits ahead of upstream |
+| `↓N` | commits behind upstream |
+| `!N` | conflicted paths |
+| `+N` | staged paths |
+| `~N` | unstaged tracked paths |
+| `?N` | untracked paths |
 
 The context line includes the current model. If the selected model supports reasoning, it also shows the active Pi thinking level such as `thinking: medium`; non-reasoning models omit that segment.
 

@@ -10,6 +10,21 @@ export interface GitWorktree {
 
 export type GitStatus = "clean" | "dirty" | "conflict";
 
+export interface GitPowerlineInfo {
+	branch: string | null;
+	detached: boolean;
+	commit: string | null;
+	status: GitStatus;
+	staged: number;
+	unstaged: number;
+	untracked: number;
+	conflicts: number;
+	ahead: number;
+	behind: number;
+	remoteUrl: string | null;
+	githubRepo: string | null;
+}
+
 export function getGitBranch(cwd: string): string | null {
 	const gitPaths = findGitPaths(cwd);
 	if (!gitPaths) return null;
@@ -42,33 +57,172 @@ export function getGitWorktrees(cwd: string): GitWorktree[] {
 	return parseGitWorktreeList(result.stdout, gitPaths.repoDir);
 }
 
-export function getGitDirty(cwd: string): boolean {
-	return getGitStatus(cwd) !== "clean";
-}
-
-export function getGitStatus(cwd: string): GitStatus {
+export function getGitPowerlineInfo(cwd: string): GitPowerlineInfo | null {
 	const gitPaths = findGitPaths(cwd);
-	if (!gitPaths) return "clean";
-	const result = spawnSync(
+	if (!gitPaths) return null;
+	const fallbackBranch = getGitBranch(cwd);
+	const statusResult = spawnSync(
 		"git",
-		["--no-optional-locks", "status", "--porcelain"],
+		["--no-optional-locks", "status", "--porcelain=v1", "--branch", "-uall"],
 		{
 			cwd: gitPaths.repoDir,
 			encoding: "utf8",
 			stdio: ["ignore", "pipe", "ignore"],
 		},
 	);
-	if (result.status !== 0) return "clean";
-	const statusLines = result.stdout
-		.split("\n")
-		.map((line) => line.slice(0, 2))
-		.filter((status) => status.trim().length > 0);
-	if (statusLines.some(isConflictStatus)) return "conflict";
-	return statusLines.length > 0 ? "dirty" : "clean";
+	const parsed = parseGitStatusPorcelain(
+		statusResult.status === 0 ? statusResult.stdout : "",
+		fallbackBranch,
+	);
+	const commit = parsed.detached ? getGitShortCommit(gitPaths.repoDir) : null;
+	const remoteUrl = getGitRemoteUrl(gitPaths.repoDir);
+
+	return {
+		...parsed,
+		commit,
+		remoteUrl,
+		githubRepo: parseGitHubRepository(remoteUrl),
+	};
+}
+
+export function getGitDirty(cwd: string): boolean {
+	return getGitStatus(cwd) !== "clean";
+}
+
+export function getGitStatus(cwd: string): GitStatus {
+	return getGitPowerlineInfo(cwd)?.status ?? "clean";
 }
 
 function isConflictStatus(status: string): boolean {
 	return ["DD", "AU", "UD", "UA", "DU", "AA", "UU"].includes(status);
+}
+
+function parseGitStatusPorcelain(
+	output: string,
+	fallbackBranch: string | null,
+): Omit<GitPowerlineInfo, "commit" | "remoteUrl" | "githubRepo"> {
+	let branch = fallbackBranch;
+	let detached = false;
+	let ahead = 0;
+	let behind = 0;
+	let staged = 0;
+	let unstaged = 0;
+	let untracked = 0;
+	let conflicts = 0;
+
+	for (const line of output.split("\n")) {
+		if (!line) continue;
+		if (line.startsWith("## ")) {
+			const parsedBranch = parseGitBranchHeader(line.slice(3), fallbackBranch);
+			branch = parsedBranch.branch;
+			detached = parsedBranch.detached;
+			ahead = parsedBranch.ahead;
+			behind = parsedBranch.behind;
+			continue;
+		}
+
+		const status = line.slice(0, 2);
+		if (status.trim().length === 0) continue;
+		if (isConflictStatus(status)) {
+			conflicts++;
+			continue;
+		}
+		if (status === "??") {
+			untracked++;
+			continue;
+		}
+
+		const [indexStatus, worktreeStatus] = status;
+		if (indexStatus && indexStatus !== " ") staged++;
+		if (worktreeStatus && worktreeStatus !== " ") unstaged++;
+	}
+
+	const status: GitStatus =
+		conflicts > 0 || staged > 0 || unstaged > 0 || untracked > 0
+			? conflicts > 0
+				? "conflict"
+				: "dirty"
+			: "clean";
+
+	return {
+		branch,
+		detached,
+		status,
+		staged,
+		unstaged,
+		untracked,
+		conflicts,
+		ahead,
+		behind,
+	};
+}
+
+function parseGitBranchHeader(
+	header: string,
+	fallbackBranch: string | null,
+): {
+	branch: string | null;
+	detached: boolean;
+	ahead: number;
+	behind: number;
+} {
+	let branch = fallbackBranch;
+	let detached = false;
+	let ahead = 0;
+	let behind = 0;
+
+	const divergenceMatch = header.match(/\[(.*)\]/);
+	if (divergenceMatch?.[1]) {
+		for (const marker of divergenceMatch[1].split(",")) {
+			const aheadMatch = marker.trim().match(/^ahead (\d+)$/);
+			const behindMatch = marker.trim().match(/^behind (\d+)$/);
+			if (aheadMatch?.[1]) ahead = Number.parseInt(aheadMatch[1], 10);
+			if (behindMatch?.[1]) behind = Number.parseInt(behindMatch[1], 10);
+		}
+	}
+
+	const headerWithoutDivergence = header.replace(/\s*\[.*\]$/, "");
+	if (headerWithoutDivergence.startsWith("No commits yet on ")) {
+		branch = headerWithoutDivergence.slice("No commits yet on ".length).trim();
+	} else if (headerWithoutDivergence.startsWith("HEAD ")) {
+		detached = true;
+		branch = null;
+	} else {
+		branch = headerWithoutDivergence.split("...")[0]?.trim() || fallbackBranch;
+	}
+
+	return { branch, detached, ahead, behind };
+}
+
+function getGitShortCommit(repoDir: string): string | null {
+	const result = spawnSync("git", ["--no-optional-locks", "rev-parse", "--short", "HEAD"], {
+		cwd: repoDir,
+		encoding: "utf8",
+		stdio: ["ignore", "pipe", "ignore"],
+	});
+	const commit = result.status === 0 ? result.stdout.trim() : "";
+	return commit || null;
+}
+
+function getGitRemoteUrl(repoDir: string): string | null {
+	const result = spawnSync("git", ["--no-optional-locks", "config", "--get", "remote.origin.url"], {
+		cwd: repoDir,
+		encoding: "utf8",
+		stdio: ["ignore", "pipe", "ignore"],
+	});
+	const remoteUrl = result.status === 0 ? result.stdout.trim() : "";
+	return remoteUrl || null;
+}
+
+function parseGitHubRepository(remoteUrl: string | null): string | null {
+	if (!remoteUrl) return null;
+	const normalized = remoteUrl.trim().replace(/\.git$/, "");
+	const match =
+		normalized.match(/^git@github\.com:([^/]+)\/(.+)$/) ??
+		normalized.match(/^ssh:\/\/git@github\.com\/([^/]+)\/(.+)$/) ??
+		normalized.match(/^https?:\/\/github\.com\/([^/]+)\/(.+)$/);
+	if (!match?.[1] || !match[2]) return null;
+	return `${match[1]}/${match[2]}`;
 }
 
 function parseGitWorktreeList(

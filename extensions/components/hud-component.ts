@@ -8,7 +8,11 @@ import type {
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import { basename } from "node:path";
-import { getGitBranch, getGitWorktrees } from "../git/git.js";
+import {
+	getGitBranch,
+	getGitPowerlineInfo,
+	getGitWorktrees,
+} from "../git/git.js";
 import { getMcpAdapterInfo } from "../mcp/mcp-adapter.js";
 import type {
 	HudSettings,
@@ -21,6 +25,7 @@ import {
 	formatNumber,
 	formatShortcut,
 } from "../utils/formatters.js";
+import { formatGitPowerlineLabel } from "../utils/git-powerline.js";
 import { getModelLabel, getThinkingLabel } from "../utils/model-status.js";
 
 export class HudComponent implements Component {
@@ -56,8 +61,11 @@ export class HudComponent implements Component {
 			"New session";
 		const sessionId = this.ctx.sessionManager.getSessionId();
 		const projectPath = this.ctx.sessionManager.getCwd() || this.ctx.cwd;
+		const gitInfo = this.settings.visibility.project
+			? getGitPowerlineInfo(projectPath)
+			: null;
 		const gitBranch = this.settings.visibility.project
-			? getGitBranch(projectPath)
+			? (gitInfo?.branch ?? getGitBranch(projectPath))
 			: undefined;
 		const mcpAdapter =
 			this.settings.visibility.mcps && !this.isCompact()
@@ -261,11 +269,19 @@ export class HudComponent implements Component {
 		if (this.settings.visibility.project) {
 			this.pushSection(lines, innerWidth, "Project");
 			this.pushLine(lines, innerWidth, projectPath);
-			if (gitBranch) {
+			const gitLabel = formatGitPowerlineLabel(gitInfo, gitBranch ?? null);
+			if (gitInfo?.githubRepo) {
 				this.pushLine(
 					lines,
 					innerWidth,
-					this.theme.fg("dim", `branch ${gitBranch}`),
+					this.theme.fg("dim", `github ${gitInfo.githubRepo}`),
+				);
+			}
+			if (gitLabel) {
+				this.pushLine(
+					lines,
+					innerWidth,
+					this.theme.fg("dim", `git ${gitLabel}`),
 				);
 			}
 		}

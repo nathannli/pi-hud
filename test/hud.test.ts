@@ -294,7 +294,7 @@ describe("pi-hud extension", () => {
 		expect(rendered).not.toContain("Context");
 		expect(rendered).not.toContain("6.0% used");
 		expect(rendered).not.toContain("Project");
-		expect(rendered).not.toContain("branch main");
+		expect(rendered).not.toContain("git 🟢 main");
 		expect(rendered).not.toContain("Git worktrees");
 		expect(rendered).not.toContain("Configured MCPs");
 		expect(rendered).not.toContain("Timer");
@@ -740,7 +740,7 @@ describe("pi-hud extension", () => {
 		expect(rendered).toContain("12.0k tokens");
 		expect(rendered).toContain("6.0% used");
 		expect(rendered).toContain("thinking: medium");
-		expect(rendered).toContain("branch main");
+		expect(rendered).toContain("git 🟢 main");
 		expect(rendered).not.toContain("Git worktrees");
 		expect(rendered).not.toContain("MCP");
 		expect(rendered).toContain("/hud or ctrl+shift+h hide/show");
@@ -991,6 +991,9 @@ describe("pi-hud extension", () => {
 
 	test("renders git worktrees when multiple worktrees are registered", async () => {
 		vi.mocked(spawnSync).mockImplementation((command, args) => {
+			if (command === "git" && Array.isArray(args) && args.includes("status")) {
+				return { status: 0, stdout: "## main\n" } as never;
+			}
 			if (
 				command === "git" &&
 				Array.isArray(args) &&
@@ -1025,6 +1028,73 @@ describe("pi-hud extension", () => {
 		expect(rendered).toContain("• feature/worktrees · /repo/project-fe");
 		expect(rendered).not.toContain("detached");
 		expect(rendered).not.toContain("/tmp/project-publish");
+	});
+
+	test("renders GitHub repo and powerline-style git details", async () => {
+		vi.mocked(spawnSync).mockImplementation((command, args) => {
+			if (command === "git" && Array.isArray(args) && args.includes("status")) {
+				return {
+					status: 0,
+					stdout: [
+						"## feature/status...origin/feature/status [ahead 2, behind 1]",
+						"M  staged.ts",
+						" M unstaged.ts",
+						"?? new.ts",
+					].join("\n"),
+				} as never;
+			}
+			if (command === "git" && Array.isArray(args) && args.includes("config")) {
+				return {
+					status: 0,
+					stdout: "git@github.com:ludevdot/pi-hud.git\n",
+				} as never;
+			}
+			return { status: 0, stdout: "feature/status\n" } as never;
+		});
+
+		const { commands, ctx, capturedComponents } = createHarness();
+		await expectCommandReturnsPromptly(commands.get("hud")!, ctx);
+
+		const rendered = capturedComponents[0]?.render(80).join("\n");
+		expect(rendered).toContain("github ludevdot/pi-hud");
+		expect(rendered).toContain("git 🟡 feature/status ↑2 ↓1 +1 ~1 ?1");
+	});
+
+	test("footer includes GitHub repo and powerline-style git details", async () => {
+		vi.mocked(spawnSync).mockImplementation((command, args) => {
+			if (command === "git" && Array.isArray(args) && args.includes("status")) {
+				return {
+					status: 0,
+					stdout: [
+						"## feature/status...origin/feature/status [ahead 2]",
+						"A  staged.ts",
+						"?? new.ts",
+					].join("\n"),
+				} as never;
+			}
+			if (command === "git" && Array.isArray(args) && args.includes("config")) {
+				return {
+					status: 0,
+					stdout: "https://github.com/ludevdot/pi-hud.git\n",
+				} as never;
+			}
+			return { status: 0, stdout: "feature/status\n" } as never;
+		});
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness();
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const footerText = capturedFooterComponents[0]!
+			.render(160)
+			.map(unwrapBg)
+			.join("\n");
+		expect(footerText).toContain("GitHub: ludevdot/pi-hud");
+		expect(footerText).toContain("Git: 🟡 feature/status ↑2 +1 ?1");
 	});
 
 	test("renders configured MCP servers only when the adapter package is installed", async () => {
@@ -1117,7 +1187,9 @@ describe("pi-hud extension", () => {
 			new Set(rendered.map((line) => visibleWidth(unwrapBg(line)))),
 		).toEqual(new Set([120]));
 		const footerText = rendered.map(unwrapBg).join("\n");
-		expect(footerText).toContain("📁 Project  Project /repo/project 🟢 (main)");
+		expect(footerText).toContain(
+			"📁 Project  Project /repo/project │ Git: 🟢 main",
+		);
 		expect(footerText).toContain(
 			"🧠 Context  12.0k tokens │ 🟢 6.0% used/200.0k ctx",
 		);
@@ -1744,7 +1816,7 @@ describe("pi-hud extension", () => {
 
 		expect(
 			dirtyHarness.capturedFooterComponents[0]!.render(80).join("\n"),
-		).toContain("🟡 (main*)");
+		).toContain("🟡 main ~1");
 
 		vi.mocked(spawnSync).mockImplementation(
 			(_command, args) =>
@@ -1761,7 +1833,7 @@ describe("pi-hud extension", () => {
 
 		expect(
 			conflictHarness.capturedFooterComponents[0]!.render(80).join("\n"),
-		).toContain("🔴 (main!)");
+		).toContain("🔴 main !1");
 	});
 
 	test("footer context percentage uses warning and error styling", async () => {

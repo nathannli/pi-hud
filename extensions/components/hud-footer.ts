@@ -15,10 +15,8 @@ import {
 } from "@earendil-works/pi-tui";
 import { basename } from "node:path";
 import {
-	getGitBranch,
-	getGitStatus,
+	getGitPowerlineInfo,
 	getGitWorktrees,
-	type GitStatus,
 } from "../git/git.js";
 import { getMcpAdapterInfo } from "../mcp/mcp-adapter.js";
 import {
@@ -32,6 +30,7 @@ import type {
 	SubagentStatus,
 } from "../types/hud.js";
 import { formatNumber } from "../utils/formatters.js";
+import { formatGitPowerlineLabel } from "../utils/git-powerline.js";
 import { getModelLabel, getThinkingLabel } from "../utils/model-status.js";
 
 type FooterFactory = NonNullable<
@@ -77,9 +76,13 @@ export class HudFooter implements Component {
 		const safeWidth = Math.max(1, width);
 		const projectPath = this.ctx.sessionManager.getCwd() || this.ctx.cwd;
 		const projectName = formatProjectTitle(projectPath) ?? "Project";
-		const branch = this.footerData.getGitBranch() ?? getGitBranch(projectPath);
-		const gitStatus = getGitStatus(projectPath);
-		const branchLabel = formatBranchLabel(branch, gitStatus);
+		const gitInfo = getGitPowerlineInfo(projectPath);
+		const branch = gitInfo?.branch ?? this.footerData.getGitBranch() ?? null;
+		const gitLabel = formatGitPowerlineLabel(gitInfo, branch);
+		const githubSegment = gitInfo?.githubRepo
+			? ` │ GitHub: ${gitInfo.githubRepo}`
+			: "";
+		const gitSegment = gitLabel ? ` │ Git: ${gitLabel}` : "";
 		const stats = computeStats(this.ctx);
 		const contextUsage = this.ctx.getContextUsage?.();
 		const contextWindow =
@@ -143,7 +146,7 @@ export class HudFooter implements Component {
 
 		return [
 			this.renderLine(
-				`▏ 📁 Project  ${projectName} ${projectPath}${branchLabel}`,
+				`▏ 📁 Project  ${projectName} ${projectPath}${githubSegment}${gitSegment}`,
 				safeWidth,
 			),
 			this.renderLine(
@@ -336,18 +339,6 @@ function formatProjectTitle(projectPath: string): string | null {
 
 function formatContextTokens(tokens: number | null): string {
 	return tokens === null ? "unknown" : formatNumber(tokens);
-}
-
-function formatBranchLabel(branch: string | null, status: GitStatus): string {
-	if (!branch) return ` ${formatGitStatusIcon(status)}`;
-	const suffix = status === "conflict" ? "!" : status === "dirty" ? "*" : "";
-	return ` ${formatGitStatusIcon(status)} (${branch}${suffix})`;
-}
-
-function formatGitStatusIcon(status: GitStatus): string {
-	if (status === "conflict") return "🔴";
-	if (status === "dirty") return "🟡";
-	return "🟢";
 }
 
 function formatContextIndicatorSegment(
