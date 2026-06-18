@@ -8,6 +8,8 @@
 [![license](https://img.shields.io/npm/l/pi-hud?color=blue)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/ludevdot/pi-hud?style=flat&color=yellow)](https://github.com/ludevdot/pi-hud/stargazers)
 
+> **Fork:** This fork of [ludevdot/pi-hud](https://github.com/ludevdot/pi-hud) adds an **agent prompt timer** — a per-run clock that shows how long the current agent prompt has been running (inspired by [`pi-timer`](https://github.com/jojopirker/pi-timer)). The timer is built into the HUD because running `pi-hud` in footer mode irreversibly removes the separate `pi-timer` extension for the entire session.
+
 Persistent HUD for [Pi](https://pi.dev), published as a Pi package at [pi.dev/packages/pi-hud](https://pi.dev/packages/pi-hud?name=hud).
 
 It can run as the default right-side overlay or as an opt-in footer replacement. It shows the current session, model/context usage, subagent activity, project path, git branch, worktrees, and MCP configuration without stealing focus from the editor.
