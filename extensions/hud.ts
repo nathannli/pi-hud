@@ -16,6 +16,14 @@ import type {
 	ChatGptLimitState,
 } from "./chatgpt-limit/types.js";
 import { updateChatGptUsage } from "./chatgpt-limit/usage.js";
+import { registerNeuralwattQuotaCommand } from "./neuralwatt-quota/command.js";
+import { DEFAULT_NEURALWATT_QUOTA_CONFIG } from "./neuralwatt-quota/constants.js";
+import { readNeuralwattQuotaConfig } from "./neuralwatt-quota/config.js";
+import type {
+	NeuralwattQuotaSnapshot,
+	NeuralwattQuotaState,
+} from "./neuralwatt-quota/types.js";
+import { updateNeuralwattQuota } from "./neuralwatt-quota/usage.js";
 import { HudComponent } from "./components/hud-component.js";
 import { HudFooter } from "./components/hud-footer.js";
 import {
@@ -78,6 +86,12 @@ export default function (pi: ExtensionAPI) {
 	};
 	let chatGptLimitInFlight: Promise<ChatGptLimitSnapshot | undefined> =
 		Promise.resolve(undefined);
+	const neuralwattQuotaState: NeuralwattQuotaState = {
+		quotaSnapshot: undefined,
+		footerConfig: { ...DEFAULT_NEURALWATT_QUOTA_CONFIG },
+	};
+	let neuralwattQuotaInFlight: Promise<NeuralwattQuotaSnapshot | undefined> =
+		Promise.resolve(undefined);
 
 	const clearRefreshTimer = () => {
 		if (refreshTimer === null) return;
@@ -118,6 +132,21 @@ export default function (pi: ExtensionAPI) {
 
 	const queueChatGptLimitUpdateInBackground = (ctx: ExtensionContext) => {
 		queueChatGptLimitUpdate(ctx).catch(() => undefined);
+	};
+
+	const queueNeuralwattQuotaUpdate = (ctx: ExtensionContext) => {
+		neuralwattQuotaInFlight = neuralwattQuotaInFlight
+			.catch(() => undefined)
+			.then(() => updateNeuralwattQuota(ctx, neuralwattQuotaState))
+			.then((snapshot) => {
+				requestHudRender();
+				return snapshot;
+			});
+		return neuralwattQuotaInFlight;
+	};
+
+	const queueNeuralwattQuotaUpdateInBackground = (ctx: ExtensionContext) => {
+		queueNeuralwattQuotaUpdate(ctx).catch(() => undefined);
 	};
 
 	const isCompact = (settings: HudSettings) =>
@@ -200,6 +229,7 @@ export default function (pi: ExtensionAPI) {
 							runStatus,
 							settings,
 							chatGptLimitState,
+							neuralwattQuotaState,
 							() => isCompact(settings),
 						);
 					},
@@ -246,6 +276,7 @@ export default function (pi: ExtensionAPI) {
 				runStatus,
 				settings,
 				chatGptLimitState,
+				neuralwattQuotaState,
 			);
 		});
 	};
@@ -334,6 +365,7 @@ export default function (pi: ExtensionAPI) {
 		}
 		runStatus.startedAt = null;
 		if (ctx) queueChatGptLimitUpdateInBackground(ctx);
+		if (ctx) queueNeuralwattQuotaUpdateInBackground(ctx);
 		requestHudRender();
 	});
 
@@ -351,6 +383,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("model_select", (_event, ctx) => {
 		if (ctx) queueChatGptLimitUpdateInBackground(ctx);
+		if (ctx) queueNeuralwattQuotaUpdateInBackground(ctx);
 		requestHudRender();
 	});
 
@@ -405,10 +438,12 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_start", (event, ctx) => {
 		chatGptLimitState.footerConfig = readChatGptLimitConfig();
+		neuralwattQuotaState.footerConfig = readNeuralwattQuotaConfig();
 		const settings = readHudSettings(getProjectPath(ctx));
 		applyHudMode(ctx, settings);
 		notifySessionStart(event, ctx);
 		queueChatGptLimitUpdateInBackground(ctx);
+		queueNeuralwattQuotaUpdateInBackground(ctx);
 	});
 
 	pi.on("session_shutdown", (_event, ctx) => {
@@ -425,6 +460,7 @@ export default function (pi: ExtensionAPI) {
 		runStatus.startedAt = null;
 		runStatus.lastDurationMs = 0;
 		chatGptLimitState.usageSnapshot = undefined;
+		neuralwattQuotaState.quotaSnapshot = undefined;
 		recalculateSubagentStatus();
 	});
 
@@ -446,6 +482,13 @@ export default function (pi: ExtensionAPI) {
 		pi,
 		chatGptLimitState,
 		queueChatGptLimitUpdate,
+		requestHudRender,
+	);
+
+	registerNeuralwattQuotaCommand(
+		pi,
+		neuralwattQuotaState,
+		queueNeuralwattQuotaUpdate,
 		requestHudRender,
 	);
 

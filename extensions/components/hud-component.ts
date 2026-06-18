@@ -11,6 +11,9 @@ import { basename } from "node:path";
 import { isOpenAICodexProvider } from "../chatgpt-limit/auth.js";
 import { formatChatGptLimitFooterUsage } from "../chatgpt-limit/format.js";
 import type { ChatGptLimitState } from "../chatgpt-limit/types.js";
+import { isNeuralwattProvider } from "../neuralwatt-quota/auth.js";
+import { formatNeuralwattQuotaFooterUsage } from "../neuralwatt-quota/format.js";
+import type { NeuralwattQuotaState } from "../neuralwatt-quota/types.js";
 import {
 	getGitBranch,
 	getGitPowerlineInfo,
@@ -42,6 +45,7 @@ export class HudComponent implements Component {
 		private runStatus: RunStatus,
 		private settings: HudSettings,
 		private chatGptLimitState: ChatGptLimitState,
+		private neuralwattQuotaState: NeuralwattQuotaState,
 		private isCompact: () => boolean,
 	) {}
 
@@ -92,6 +96,11 @@ export class HudComponent implements Component {
 			this.settings.visibility.chatgptLimit &&
 			isOpenAICodexProvider(model?.provider)
 				? formatChatGptLimitFooterUsage(this.chatGptLimitState)
+				: undefined;
+		const neuralwattQuotaLabel =
+			this.settings.visibility.neuralwattQuota &&
+			isNeuralwattProvider(model?.provider)
+				? formatNeuralwattQuotaFooterUsage(this.neuralwattQuotaState)
 				: undefined;
 		const contextLabel =
 			contextPercent === null
@@ -147,6 +156,13 @@ export class HudComponent implements Component {
 					lines,
 					innerWidth,
 					`⚡ ${this.theme.fg("dim", chatGptLimitLabel)}`,
+				);
+			}
+			if (neuralwattQuotaLabel) {
+				this.pushLine(
+					lines,
+					innerWidth,
+					this.theme.fg("dim", neuralwattQuotaLabel),
 				);
 			}
 			this.pushBottomBorder(lines, innerWidth);
@@ -269,6 +285,53 @@ export class HudComponent implements Component {
 				lines,
 				innerWidth,
 				this.theme.fg("dim", "/chatgpt-limit details"),
+			);
+		}
+
+		if (
+			this.settings.visibility.neuralwattQuota &&
+			isNeuralwattProvider(model?.provider)
+		) {
+			const quotaSnapshot = this.neuralwattQuotaState.quotaSnapshot;
+			this.pushSection(lines, innerWidth, "NeuralWatt quota");
+			if (neuralwattQuotaLabel) {
+				this.pushLine(
+					lines,
+					innerWidth,
+					this.theme.fg("dim", neuralwattQuotaLabel),
+				);
+			} else {
+				this.pushLine(
+					lines,
+					innerWidth,
+					this.theme.fg("dim", "usage unavailable"),
+				);
+			}
+			if (quotaSnapshot?.accountingMethod) {
+				this.pushLine(
+					lines,
+					innerWidth,
+					`billing ${quotaSnapshot.accountingMethod}`,
+				);
+			}
+			if (quotaSnapshot?.plan) {
+				this.pushLine(
+					lines,
+					innerWidth,
+					`plan ${quotaSnapshot.plan}`,
+				);
+			}
+			if (quotaSnapshot?.keyName) {
+				this.pushLine(
+					lines,
+					innerWidth,
+					`key ${quotaSnapshot.keyName}`,
+				);
+			}
+			this.pushLine(
+				lines,
+				innerWidth,
+				this.theme.fg("dim", "/neuralwatt-quota details"),
 			);
 		}
 

@@ -8,7 +8,7 @@
 [![license](https://img.shields.io/npm/l/pi-hud?color=blue)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/ludevdot/pi-hud?style=flat&color=yellow)](https://github.com/ludevdot/pi-hud/stargazers)
 
-> **Fork:** This fork of [ludevdot/pi-hud](https://github.com/ludevdot/pi-hud) adds an **agent prompt timer**, expanded **GitHub/Git powerline info**, and **ChatGPT Codex usage limits**. The timer is a per-run clock that shows how long the current agent prompt has been running (inspired by [`pi-timer`](https://github.com/jojopirker/pi-timer)). Git/GitHub status adds the repository slug, branch, ahead/behind counts, and compact working-tree indicators. ChatGPT limits are inspired by [`pi-chatgpt-limit`](https://github.com/patlux/pi-chatgpt-limit) and show 5-hour/weekly Codex subscription usage inside the HUD. The timer is built into the HUD because running `pi-hud` in footer mode irreversibly removes the separate `pi-timer` extension for the entire session.
+> **Fork:** This fork of [ludevdot/pi-hud](https://github.com/ludevdot/pi-hud) adds an **agent prompt timer**, expanded **GitHub/Git powerline info**, **ChatGPT Codex usage limits**, and **NeuralWatt credits and energy quota**. The timer is a per-run clock that shows how long the current agent prompt has been running (inspired by [`pi-timer`](https://github.com/jojopirker/pi-timer)). Git/GitHub status adds the repository slug, branch, ahead/behind counts, and compact working-tree indicators. ChatGPT limits are inspired by [`pi-chatgpt-limit`](https://github.com/patlux/pi-chatgpt-limit) and show 5-hour/weekly Codex subscription usage inside the HUD. NeuralWatt quota surfaces remaining credits and subscription energy usage for `neuralwatt` providers (inspired by [`@aliou/pi-neuralwatt`](https://github.com/aliou/pi-neuralwatt)) and only appears when the active provider is `neuralwatt`. The timer is built into the HUD because running `pi-hud` in footer mode irreversibly removes the separate `pi-timer` extension for the entire session.
 
 Persistent HUD for [Pi](https://pi.dev), published as a Pi package at [pi.dev/packages/pi-hud](https://pi.dev/packages/pi-hud?name=hud).
 
@@ -39,6 +39,7 @@ It can run as the default right-side overlay or as an opt-in footer replacement.
 - Live run timer that mirrors [`pi-timer`](https://github.com/jojopirker/pi-timer): `runs for X` while the agent is running and `ran for X` after the run ends, with the same `Xs` / `Xm YYs` / `Xh YYm` thresholds. Shown on the footer context line, in the expanded overlay's `Timer` section, and as a single `⏱` line in the compact overlay.
 - Project path plus GitHub/Git powerline details: repository slug, current branch, ahead/behind counts, conflicts, staged/unstaged/untracked counts, and clean/dirty/conflict status indicators.
 - ChatGPT Codex subscription usage limits for `openai-codex` models: footer/overlay usage display, `/chatgpt-limit` details, configurable weekly/5-hour/both windows, used/remaining/reset/pace display modes, and ChatGPT account metadata when available.
+- NeuralWatt credit balance and subscription energy quota for `neuralwatt` providers: overlay section, footer segment, `/neuralwatt-quota` details, configurable credits/energy/both/hidden footer modes, and key/subscription metadata when available.
 - Registered git worktrees when the repository has more than one worktree.
 - Configured MCP server names when `pi-mcp-adapter` is installed.
 - Opt-in footer mode with compact multi-line status, full-line background styling, and emoji indicators for project, context, MCP, help, git status, and context pressure.
@@ -129,6 +130,7 @@ Run `/hud` again, or press `ctrl+shift+h`, to hide or show the overlay. Press `c
 | `/hud-mode` | Toggle between `overlay` and `footer`, or set one explicitly with `/hud-mode footer` and `/hud-mode overlay`. |
 | `/hud-settings` | Open the HUD Settings modal for mode, position, shortcuts, startup notification, auto-compact, sizing, Modules visibility, current settings, and defaults. |
 | `/chatgpt-limit` | Show ChatGPT Codex 5-hour/weekly usage details and configure the HUD footer limit display. |
+| `/neuralwatt-quota` | Show NeuralWatt credit balance and subscription energy quota, and configure the HUD footer display. |
 
 ## Settings
 
@@ -156,7 +158,8 @@ Defaults:
       "worktrees": true,
       "mcps": true,
       "timer": true,
-      "chatgptLimit": true
+      "chatgptLimit": true,
+      "neuralwattQuota": true
     }
   }
 }
@@ -170,7 +173,7 @@ Run `/hud-settings` with no arguments to open the centered HUD Settings modal. T
 
 `startupNotification` controls the UI-only startup notification shown when `pi-hud` loads in an interactive session. It defaults to `true`, skips `/reload`, and can be disabled when you want a quieter startup. The notice is rendered with Pi's notification UI instead of a session message, so it does not add HUD text to the agent prompt context. When packaged release metadata is available, the startup notice includes the latest release commits once per version and records that marker in Pi's user state directory. The footer mode discovery tip is also shown once per packaged version and stored in the same state file.
 
-`visibility` controls optional HUD modules from the `/hud-settings` → `Modules visibility` toggle list. All visibility items default to `true`; set an item to `false` to hide it in expanded HUD and any compact equivalent. The toggle list includes `Default settings` to restore every configurable module to visible. Supported keys are `context`, `project` (project path + branches), `worktrees`, `mcps`, `timer` (the run timer), and `chatgptLimit` (ChatGPT Codex usage limits). `Subagents` is intentionally not toggleable and remains visible when applicable. After changing module visibility, run `/reload` for the change to take effect.
+`visibility` controls optional HUD modules from the `/hud-settings` → `Modules visibility` toggle list. All visibility items default to `true`; set an item to `false` to hide it in expanded HUD and any compact equivalent. The toggle list includes `Default settings` to restore every configurable module to visible. Supported keys are `context`, `project` (project path + branches), `worktrees`, `mcps`, `timer` (the run timer), `chatgptLimit` (ChatGPT Codex usage limits), and `neuralwattQuota` (NeuralWatt credits and energy quota). `Subagents` is intentionally not toggleable and remains visible when applicable. After changing module visibility, run `/reload` for the change to take effect.
 
 Examples:
 
@@ -188,6 +191,7 @@ Examples:
 /hud-settings visibility context on
 /hud-settings visibility timer off
 /hud-settings visibility chatgptLimit off
+/hud-settings visibility neuralwattQuota off
 ```
 
 ### ChatGPT Codex limits
@@ -195,6 +199,12 @@ Examples:
 The ChatGPT limit module appears only for `openai-codex` providers authenticated through Pi's `/login` flow. It calls ChatGPT's `GET https://chatgpt.com/backend-api/wham/usage` endpoint with Pi's stored OAuth token and displays the returned 5-hour and weekly usage windows.
 
 Run `/chatgpt-limit` to show plan, account email when available, 5-hour usage, weekly usage, reset times, pace, fetch time, and endpoint details. The same command configures the footer display globally in `~/.pi/agent/chatgpt-limit.json`: weekly usage (default), 5-hour usage, both windows, hidden, used percent, used percent with reset, remaining percent, remaining with reset, pace, compact pace, or pace with reset.
+
+### NeuralWatt quota
+
+The NeuralWatt quota module appears only when the active provider is `neuralwatt` and Pi has an API key for it (a `~/.pi/agent/auth.json` entry or the `NEURALWATT_API_KEY` environment variable). It calls NeuralWatt's `GET https://api.neuralwatt.com/v1/quota` endpoint with Pi's stored credentials and displays the returned credit balance, subscription energy quota, key info, and monthly usage.
+
+Run `/neuralwatt-quota` to show accounting method, plan, status, period end, credit and energy usage, key name and allowance, monthly cost and request count, fetch time, and endpoint details. The same command configures the footer display globally in `~/.pi/agent/neuralwatt-quota.json`: both credits and energy (default), credits only, energy only, or hidden.
 
 ### Footer mode
 

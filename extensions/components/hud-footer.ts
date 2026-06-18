@@ -17,6 +17,9 @@ import { basename } from "node:path";
 import { isOpenAICodexProvider } from "../chatgpt-limit/auth.js";
 import { formatChatGptLimitFooterUsage } from "../chatgpt-limit/format.js";
 import type { ChatGptLimitState } from "../chatgpt-limit/types.js";
+import { isNeuralwattProvider } from "../neuralwatt-quota/auth.js";
+import { formatNeuralwattQuotaFooterUsage } from "../neuralwatt-quota/format.js";
+import type { NeuralwattQuotaState } from "../neuralwatt-quota/types.js";
 import {
 	getGitPowerlineInfo,
 	getGitWorktrees,
@@ -63,6 +66,7 @@ export class HudFooter implements Component {
 		private runStatus: RunStatus,
 		private settings: HudSettings,
 		private chatGptLimitState: ChatGptLimitState,
+		private neuralwattQuotaState: NeuralwattQuotaState,
 	) {
 		this.unsubscribeBranchChange = this.footerData.onBranchChange(() =>
 			this.tui.requestRender(),
@@ -108,6 +112,14 @@ export class HudFooter implements Component {
 			isOpenAICodexProvider(this.ctx.model?.provider)
 				? formatChatGptLimitFooterUsage(this.chatGptLimitState, this.theme)
 				: undefined;
+		const neuralwattQuotaUsage =
+			this.settings.visibility.neuralwattQuota &&
+			isNeuralwattProvider(this.ctx.model?.provider)
+				? formatNeuralwattQuotaFooterUsage(
+						this.neuralwattQuotaState,
+						this.theme,
+					)
+				: undefined;
 		const contextLine = formatContextLine({
 			usageDisplay: this.settings.usageDisplay,
 			contextTokens,
@@ -117,6 +129,7 @@ export class HudFooter implements Component {
 			thinkingLabel,
 			cost: stats.cost,
 			chatGptLimitUsage,
+			neuralwattQuotaUsage,
 			runTimerSuffix: this.settings.visibility.timer
 				? formatRunTimerSuffix(this.runStatus)
 				: null,
@@ -218,6 +231,7 @@ function formatContextLine(options: {
 	modelLabel: string;
 	thinkingLabel: string | null;
 	chatGptLimitUsage: string | undefined;
+	neuralwattQuotaUsage: string | undefined;
 	cost: number;
 	runTimerSuffix: string | null;
 }): string {
@@ -225,18 +239,22 @@ function formatContextLine(options: {
 	const chatGptLimitSegment = options.chatGptLimitUsage
 		? ` │ ${options.chatGptLimitUsage}`
 		: "";
+	const neuralwattQuotaSegment = options.neuralwattQuotaUsage
+		? ` │ ${options.neuralwattQuotaUsage}`
+		: "";
+	const externalUsageSegment = `${chatGptLimitSegment}${neuralwattQuotaSegment}`;
 	const runTimerSuffix = options.runTimerSuffix ?? "";
 	if (options.usageDisplay === "subscription") {
 		const thinkingSuffix = options.thinkingLabel
 			? ` / ${formatSubscriptionThinkingLabel(options.thinkingLabel)}`
 			: "";
-		return `▏ 🧠 Context  ${contextUsage} │ ${options.modelLabel}${thinkingSuffix}${chatGptLimitSegment}${runTimerSuffix}`;
+		return `▏ 🧠 Context  ${contextUsage} │ ${options.modelLabel}${thinkingSuffix}${externalUsageSegment}${runTimerSuffix}`;
 	}
 
 	const thinkingSegment = options.thinkingLabel
 		? ` │ ${options.thinkingLabel}`
 		: "";
-	return `▏ 🧠 Context  ${formatContextTokens(options.contextTokens)} tokens │ ${contextUsage} │ ${options.modelLabel}${thinkingSegment}${chatGptLimitSegment} │ $${options.cost.toFixed(5)} spent${runTimerSuffix}`;
+	return `▏ 🧠 Context  ${formatContextTokens(options.contextTokens)} tokens │ ${contextUsage} │ ${options.modelLabel}${thinkingSegment}${externalUsageSegment} │ $${options.cost.toFixed(5)} spent${runTimerSuffix}`;
 }
 
 function formatRunTimerSuffix(runStatus: RunStatus): string | null {

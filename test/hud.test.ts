@@ -206,6 +206,87 @@ function mockChatGptUsageFetch({
 	return fetchMock;
 }
 
+function mockNeuralwattQuotaFetch({
+	creditsRemaining = 12.34,
+	totalCredits = 25,
+	creditsUsed = 12.66,
+	accountingMethod = "token",
+	plan = "Pro",
+	status = "active",
+	kwhIncluded = 100,
+	kwhUsed = 25,
+	kwhRemaining = 75,
+	inOverage = false,
+	periodEnd = "2026-07-01T00:00:00Z",
+	keyName = "test-key",
+	monthlyCost = 1.5,
+	monthlyRequests = 42,
+}: {
+	creditsRemaining?: number;
+	totalCredits?: number;
+	creditsUsed?: number;
+	accountingMethod?: string;
+	plan?: string;
+	status?: string;
+	kwhIncluded?: number;
+	kwhUsed?: number;
+	kwhRemaining?: number;
+	inOverage?: boolean;
+	periodEnd?: string;
+	keyName?: string;
+	monthlyCost?: number;
+	monthlyRequests?: number;
+} = {}): ReturnType<typeof vi.fn> {
+	const fetchMock = vi.fn(async () => ({
+		ok: true,
+		json: async () => ({
+			snapshot_at: new Date().toISOString(),
+			balance: {
+				credits_remaining_usd: creditsRemaining,
+				total_credits_usd: totalCredits,
+				credits_used_usd: creditsUsed,
+				accounting_method: accountingMethod,
+			},
+			usage: {
+				lifetime: {
+					cost_usd: 50,
+					requests: 1000,
+					tokens: 1_000_000,
+					energy_kwh: 5,
+				},
+				current_month: {
+					cost_usd: monthlyCost,
+					requests: monthlyRequests,
+					tokens: 50_000,
+					energy_kwh: 0.5,
+				},
+			},
+			limits: {
+				overage_limit_usd: null,
+				rate_limit_tier: "default",
+			},
+			subscription: {
+				plan,
+				status,
+				billing_interval: "monthly",
+				current_period_start: "2026-06-01T00:00:00Z",
+				current_period_end: periodEnd,
+				auto_renew: true,
+				kwh_included: kwhIncluded,
+				kwh_used: kwhUsed,
+				kwh_remaining: kwhRemaining,
+				in_overage: inOverage,
+			},
+			key: {
+				name: keyName,
+				allowance: null,
+			},
+		}),
+	}));
+	vi.stubGlobal("fetch", fetchMock);
+	return fetchMock;
+}
+
 describe("pi-hud extension", () => {
 	test("loads default mode and visibility and safely merges supported keys only", () => {
 		process.env.PI_CODING_AGENT_DIR = "/agent";
@@ -390,6 +471,200 @@ describe("pi-hud extension", () => {
 			"ChatGPT limit display mode: Remaining percent, e.g. W 58% left",
 			"info",
 		);
+	});
+
+	test("/neuralwatt-quota fetches and reports NeuralWatt quota details", async () => {
+		const fetchMock = mockNeuralwattQuotaFetch();
+		const { commands, ctx, select } = createHarness({
+			provider: "neuralwatt",
+			apiKey: "test-key",
+			selectChoices: ["Show current quota details"],
+		});
+
+		await commands.get("neuralwatt-quota")!.handler("", ctx);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://api.neuralwatt.com/v1/quota",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Authorization: "Bearer test-key",
+				}),
+			}),
+		);
+		expect(select).toHaveBeenLastCalledWith(
+			"NeuralWatt quota",
+			expect.arrayContaining([
+				"billing: token",
+				expect.stringContaining("credits: $12.34 remaining of $25.00"),
+				expect.stringContaining("energy: 75.00 kWh remaining of 100.00 kWh"),
+				"plan: Pro",
+				"status: active",
+				"key: test-key",
+				"this month: $1.50",
+			]),
+		);
+	});
+
+	test("/neuralwatt-quota reports unavailability when no NeuralWatt provider is active", async () => {
+		const { commands, ctx, notify } = createHarness({
+			provider: "openai-codex",
+			apiKey: "test-key",
+			selectChoices: ["Show current quota details"],
+		});
+
+		await commands.get("neuralwatt-quota")!.handler("", ctx);
+
+		expect(notify).toHaveBeenCalledWith(
+			"NeuralWatt quota is only available for neuralwatt models.",
+			"info",
+		);
+	});
+
+	test("footer shows fetched NeuralWatt quota for neuralwatt provider", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		mockNeuralwattQuotaFetch();
+		const { commands, ctx, eventHandlers, capturedFooterComponents } =
+			createHarness({
+				provider: "neuralwatt",
+				apiKey: "test-key",
+				selectChoices: ["Show current quota details"],
+			});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+		await commands.get("neuralwatt-quota")!.handler("", ctx);
+
+		const rendered = capturedFooterComponents.at(-1)!.render(220).join("\n");
+		expect(rendered).toContain("$12.34");
+		expect(rendered).toContain("75.00 kWh");
+	});
+
+	test("footer omits NeuralWatt quota for non-neuralwatt providers", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const { ctx, eventHandlers, capturedFooterComponents } = createHarness({
+			provider: "openai-codex",
+			apiKey: "test-key",
+		});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const rendered = capturedFooterComponents.at(-1)!.render(220).join("\n");
+		expect(rendered).not.toContain("$12.34");
+		expect(rendered).not.toContain("75.00 kWh");
+	});
+
+	test("footer shows only credits when NeuralWatt display mode is credits", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		mockNeuralwattQuotaFetch();
+		process.env.PI_CODING_AGENT_DIR = "/agent";
+		mockSettingsFile("/agent/neuralwatt-quota.json", {
+			displayMode: "credits",
+		});
+		const { commands, ctx, eventHandlers, capturedFooterComponents } =
+			createHarness({
+				provider: "neuralwatt",
+				apiKey: "test-key",
+				selectChoices: ["Show current quota details"],
+			});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+		await commands.get("neuralwatt-quota")!.handler("", ctx);
+
+		const rendered = capturedFooterComponents.at(-1)!.render(220).join("\n");
+		expect(rendered).toContain("$12.34");
+		expect(rendered).not.toContain("75.00 kWh");
+	});
+
+	test("/neuralwatt-quota persists HUD footer display settings", async () => {
+		process.env.PI_CODING_AGENT_DIR = "/agent";
+		const { commands, ctx, notify } = createHarness({
+			selectChoices: [
+				"Configure HUD footer display mode",
+				"Credits only",
+			],
+		});
+
+		await commands.get("neuralwatt-quota")!.handler("", ctx);
+
+		expect(writeFileSync).toHaveBeenCalledWith(
+			"/agent/neuralwatt-quota.json",
+			expect.stringContaining('"displayMode": "credits"'),
+			"utf8",
+		);
+		expect(notify).toHaveBeenCalledWith(
+			"NeuralWatt quota HUD display: Credits only",
+			"info",
+		);
+	});
+
+	test("/neuralwatt-quota resets HUD footer settings when requested", async () => {
+		process.env.PI_CODING_AGENT_DIR = "/agent";
+		mockSettingsFile("/agent/neuralwatt-quota.json", {
+			displayMode: "hidden",
+		});
+		const { commands, ctx, notify } = createHarness({
+			selectChoices: ["Reset HUD footer settings to defaults"],
+		});
+
+		await commands.get("neuralwatt-quota")!.handler("", ctx);
+
+		expect(writeFileSync).toHaveBeenCalledWith(
+			"/agent/neuralwatt-quota.json",
+			expect.stringContaining('"displayMode": "both"'),
+			"utf8",
+		);
+		expect(notify).toHaveBeenCalledWith(
+			"NeuralWatt quota HUD settings reset to defaults.",
+			"info",
+		);
+	});
+
+	test("overlay HUD shows NeuralWatt quota section for neuralwatt provider", async () => {
+		mockNeuralwattQuotaFetch();
+		const { commands, ctx, eventHandlers, capturedComponents } =
+			createHarness({
+				provider: "neuralwatt",
+				apiKey: "test-key",
+				selectChoices: ["Show current quota details"],
+			});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+		await commands.get("neuralwatt-quota")!.handler("", ctx);
+
+		const rendered = capturedComponents.at(-1)!.render(60).join("\n");
+		expect(rendered).toContain("NeuralWatt quota");
+		expect(rendered).toContain("billing token");
+		expect(rendered).toContain("plan Pro");
+		expect(rendered).toContain("key test-key");
+		expect(rendered).toContain("/neuralwatt-quota");
+	});
+
+	test("overlay HUD omits NeuralWatt quota section for non-neuralwatt providers", async () => {
+		const { ctx, eventHandlers, capturedComponents } = createHarness({
+			provider: "openai-codex",
+			apiKey: "test-key",
+		});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const rendered = capturedComponents.at(-1)!.render(60).join("\n");
+		expect(rendered).not.toContain("NeuralWatt quota");
+		expect(rendered).not.toContain("/neuralwatt-quota");
 	});
 
 	test("omits hidden expanded and compact HUD items while keeping subagents", async () => {

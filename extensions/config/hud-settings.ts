@@ -41,6 +41,7 @@ export const HUD_VISIBILITY_KEYS = [
 	"mcps",
 	"timer",
 	"chatgptLimit",
+	"neuralwattQuota",
 ] as const satisfies readonly HudVisibilityKey[];
 
 export const DEFAULT_HUD_VISIBILITY = {
@@ -50,6 +51,7 @@ export const DEFAULT_HUD_VISIBILITY = {
 	mcps: true,
 	timer: true,
 	chatgptLimit: true,
+	neuralwattQuota: true,
 } satisfies HudSettings["visibility"];
 
 export const HUD_VISIBILITY_LABELS = {
@@ -59,6 +61,7 @@ export const HUD_VISIBILITY_LABELS = {
 	mcps: "Configured MCPs",
 	timer: "Run timer",
 	chatgptLimit: "ChatGPT limits",
+	neuralwattQuota: "NeuralWatt quota",
 } satisfies Record<HudVisibilityKey, string>;
 
 export const DEFAULT_HUD_SETTINGS: HudSettings = {
