@@ -62,6 +62,7 @@ export default function (pi: ExtensionAPI) {
 	const activeSubagentTools = new Map<string, ActiveSubagentToolRun>();
 	let completedSubagentToolRuns = 0;
 	let failedSubagentToolRuns = 0;
+	const runStatus: RunStatus = { startedAt: null, lastDurationMs: 0 };
 
 	const clearRefreshTimer = () => {
 		if (refreshTimer === null) return;
@@ -166,6 +167,7 @@ export default function (pi: ExtensionAPI) {
 							theme,
 							done,
 							subagentStatus,
+							runStatus,
 							settings,
 							() => isCompact(settings),
 						);
@@ -210,6 +212,7 @@ export default function (pi: ExtensionAPI) {
 				theme,
 				footerData,
 				subagentStatus,
+				runStatus,
 				settings,
 			);
 		});
@@ -287,12 +290,17 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("agent_start", () => {
 		agentStatus.running++;
+		runStatus.startedAt = Date.now();
 		requestHudRender();
 	});
 
 	pi.on("agent_end", () => {
 		agentStatus.running = Math.max(0, agentStatus.running - 1);
 		agentStatus.completed++;
+		if (runStatus.startedAt !== null) {
+			runStatus.lastDurationMs = Date.now() - runStatus.startedAt;
+		}
+		runStatus.startedAt = null;
 		requestHudRender();
 	});
 
@@ -378,6 +386,8 @@ export default function (pi: ExtensionAPI) {
 		activeSubagentTools.clear();
 		completedSubagentToolRuns = 0;
 		failedSubagentToolRuns = 0;
+		runStatus.startedAt = null;
+		runStatus.lastDurationMs = 0;
 		recalculateSubagentStatus();
 	});
 

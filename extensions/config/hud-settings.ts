@@ -39,6 +39,7 @@ export const HUD_VISIBILITY_KEYS = [
 	"project",
 	"worktrees",
 	"mcps",
+	"timer",
 ] as const satisfies readonly HudVisibilityKey[];
 
 export const DEFAULT_HUD_VISIBILITY = {
@@ -46,6 +47,7 @@ export const DEFAULT_HUD_VISIBILITY = {
 	project: true,
 	worktrees: true,
 	mcps: true,
+	timer: true,
 } satisfies HudSettings["visibility"];
 
 export const HUD_VISIBILITY_LABELS = {
@@ -53,6 +55,7 @@ export const HUD_VISIBILITY_LABELS = {
 	project: "Project path + Branches",
 	worktrees: "Worktrees",
 	mcps: "Configured MCPs",
+	timer: "Run timer",
 } satisfies Record<HudVisibilityKey, string>;
 
 export const DEFAULT_HUD_SETTINGS: HudSettings = {

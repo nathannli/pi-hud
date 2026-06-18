@@ -15,6 +15,11 @@ export interface AgentStatus {
 	completed: number;
 }
 
+export interface RunStatus {
+	startedAt: number | null;
+	lastDurationMs: number;
+}
+
 export interface SubagentActiveItem {
 	id: string;
 	label: string;
@@ -56,7 +61,12 @@ export type HudUsageDisplay = "metered" | "subscription";
 
 export type HudContextIndicator = "icon" | "bar";
 
-export type HudVisibilityKey = "context" | "project" | "worktrees" | "mcps";
+export type HudVisibilityKey =
+	| "context"
+	| "project"
+	| "worktrees"
+	| "mcps"
+	| "timer";
 
 export type HudVisibility = Record<HudVisibilityKey, boolean>;
 

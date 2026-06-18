@@ -27,6 +27,7 @@ import {
 } from "../workflow/openspec-status.js";
 import type {
 	HudSettings,
+	RunStatus,
 	SessionStats,
 	SubagentStatus,
 } from "../types/hud.js";
@@ -57,6 +58,7 @@ export class HudFooter implements Component {
 		private theme: Theme,
 		private footerData: FooterData,
 		private subagentStatus: SubagentStatus,
+		private runStatus: RunStatus,
 		private settings: HudSettings,
 	) {
 		this.unsubscribeBranchChange = this.footerData.onBranchChange(() =>
@@ -102,6 +104,9 @@ export class HudFooter implements Component {
 			modelLabel,
 			thinkingLabel,
 			cost: stats.cost,
+			runTimerSuffix: this.settings.visibility.timer
+				? formatRunTimerSuffix(this.runStatus)
+				: null,
 		});
 		const worktree = getCurrentWorktreePath(projectPath);
 		const extensionStatuses = [
@@ -200,19 +205,46 @@ function formatContextLine(options: {
 	modelLabel: string;
 	thinkingLabel: string | null;
 	cost: number;
+	runTimerSuffix: string | null;
 }): string {
 	const contextUsage = `${options.contextIndicatorText} used/${formatNumber(options.contextWindow)} ctx`;
+	const runTimerSuffix = options.runTimerSuffix ?? "";
 	if (options.usageDisplay === "subscription") {
 		const thinkingSuffix = options.thinkingLabel
 			? ` / ${formatSubscriptionThinkingLabel(options.thinkingLabel)}`
 			: "";
-		return `▏ 🧠 Context  ${contextUsage} │ ${options.modelLabel}${thinkingSuffix}`;
+		return `▏ 🧠 Context  ${contextUsage} │ ${options.modelLabel}${thinkingSuffix}${runTimerSuffix}`;
 	}
 
 	const thinkingSegment = options.thinkingLabel
 		? ` │ ${options.thinkingLabel}`
 		: "";
-	return `▏ 🧠 Context  ${formatContextTokens(options.contextTokens)} tokens │ ${contextUsage} │ ${options.modelLabel}${thinkingSegment} │ $${options.cost.toFixed(5)} spent`;
+	return `▏ 🧠 Context  ${formatContextTokens(options.contextTokens)} tokens │ ${contextUsage} │ ${options.modelLabel}${thinkingSegment} │ $${options.cost.toFixed(5)} spent${runTimerSuffix}`;
+}
+
+function formatRunTimerSuffix(runStatus: RunStatus): string | null {
+	const active = runStatus.startedAt !== null;
+	const elapsedMs = active
+		? Date.now() - (runStatus.startedAt ?? 0)
+		: runStatus.lastDurationMs;
+	if (elapsedMs <= 0 && !active) return null;
+	const label = active ? "runs for" : "ran for";
+	return ` │ ⏱ ${label} ${formatRunDuration(elapsedMs)}`;
+}
+
+function formatRunDuration(ms: number): string {
+	const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
+
+	if (hours > 0) {
+		return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+	}
+	if (minutes > 0) {
+		return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+	}
+	return `${seconds}s`;
 }
 
 function formatSubscriptionThinkingLabel(thinkingLabel: string): string {

@@ -34,6 +34,7 @@ It can run as the default right-side overlay or as an opt-in footer replacement.
   - elapsed time;
   - token/context count when available.
 - Session context usage, cost, active model, and reasoning/thinking level when the selected model supports it.
+- Live run timer that mirrors [`pi-timer`](https://github.com/jojopirker/pi-timer): `runs for X` while the agent is running and `ran for X` after the run ends, with the same `Xs` / `Xm YYs` / `Xh YYm` thresholds. Shown on the footer context line, in the expanded overlay's `Timer` section, and as a single `⏱` line in the compact overlay.
 - Project path, current git branch, and git status indicators.
 - Registered git worktrees when the repository has more than one worktree.
 - Configured MCP server names when `pi-mcp-adapter` is installed.
@@ -163,7 +164,7 @@ Run `/hud-settings` with no arguments to open the centered HUD Settings modal. T
 
 `startupNotification` controls the UI-only startup notification shown when `pi-hud` loads in an interactive session. It defaults to `true`, skips `/reload`, and can be disabled when you want a quieter startup. The notice is rendered with Pi's notification UI instead of a session message, so it does not add HUD text to the agent prompt context. When packaged release metadata is available, the startup notice includes the latest release commits once per version and records that marker in Pi's user state directory. The footer mode discovery tip is also shown once per packaged version and stored in the same state file.
 
-`visibility` controls optional HUD modules from the `/hud-settings` → `Modules visibility` toggle list. All visibility items default to `true`; set an item to `false` to hide it in expanded HUD and any compact equivalent. The toggle list includes `Default settings` to restore every configurable module to visible. Supported keys are `context`, `project` (project path + branches), `worktrees`, and `mcps`. `Subagents` is intentionally not toggleable and remains visible when applicable. After changing module visibility, run `/reload` for the change to take effect.
+`visibility` controls optional HUD modules from the `/hud-settings` → `Modules visibility` toggle list. All visibility items default to `true`; set an item to `false` to hide it in expanded HUD and any compact equivalent. The toggle list includes `Default settings` to restore every configurable module to visible. Supported keys are `context`, `project` (project path + branches), `worktrees`, `mcps`, and `timer` (the run timer). `Subagents` is intentionally not toggleable and remains visible when applicable. After changing module visibility, run `/reload` for the change to take effect.
 
 Examples:
 
@@ -179,6 +180,7 @@ Examples:
 /hud-settings startupNotification off
 /hud-settings visibility worktrees off
 /hud-settings visibility context on
+/hud-settings visibility timer off
 ```
 
 ### Footer mode
@@ -195,11 +197,13 @@ The footer renders five compact lines:
 
 ```text
 ▏ 📁 Project  Pi-hud /Users/ludev/projectes/pi-hud 🟢 (main)
-▏ 🧠 Context  12.0k tokens │ 🟢 6.0% used/200.0k ctx │ Claude Sonnet │ thinking: medium │ $0.01000 spent
+▏ 🧠 Context  12.0k tokens │ 🟢 6.0% used/200.0k ctx │ Claude Sonnet │ thinking: medium │ $0.01000 spent │ ⏱ runs for 1m 23s
 ▏ 🔌 MCP      2/4 servers │ Worktree: No worktrees
 ▏ ❔ Help     /hud-mode │ /hud-settings │ 🔗 docs │ Status: LSP Inactive
 ▏ 🔁 Session  resume: pi --session 019e9925-92bb-78d7-aa4a-44ef32c10fcc
 ```
+
+The trailing `⏱ runs for X` segment on the context line is the run timer: it counts up while the agent is running and switches to `ran for X` after the run ends. The expanded overlay's `Timer` section shows the same value, and the compact overlay condenses it to a single `⏱ X` line. Hide it via `/hud-settings` → Modules visibility → `Run timer`.
 
 When the project has exactly one active OpenSpec change, the help line becomes a short workflow hint instead of listing full SDD details:
 

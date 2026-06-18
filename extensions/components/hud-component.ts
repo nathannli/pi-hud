@@ -12,6 +12,7 @@ import { getGitBranch, getGitWorktrees } from "../git/git.js";
 import { getMcpAdapterInfo } from "../mcp/mcp-adapter.js";
 import type {
 	HudSettings,
+	RunStatus,
 	SessionStats,
 	SubagentStatus,
 } from "../types/hud.js";
@@ -30,6 +31,7 @@ export class HudComponent implements Component {
 		private theme: Theme,
 		private done: () => void,
 		private subagentStatus: SubagentStatus,
+		private runStatus: RunStatus,
 		private settings: HudSettings,
 		private isCompact: () => boolean,
 	) {}
@@ -116,6 +118,13 @@ export class HudComponent implements Component {
 					this.theme.fg("accent", `[·] ${this.subagentStatus.activeLabel}`),
 				);
 			}
+			const compactTimerLine = formatCompactTimerLine(
+				this.runStatus,
+				this.settings.visibility.timer,
+			);
+			if (compactTimerLine) {
+				this.pushLine(lines, innerWidth, compactTimerLine);
+			}
 			this.pushBottomBorder(lines, innerWidth);
 			return lines;
 		}
@@ -196,6 +205,15 @@ export class HudComponent implements Component {
 			);
 		} else {
 			this.pushLine(lines, innerWidth, this.theme.fg("dim", "subagents idle"));
+		}
+
+		if (this.settings.visibility.timer) {
+			this.pushSection(lines, innerWidth, "Timer");
+			this.pushLine(
+				lines,
+				innerWidth,
+				formatRunTimerLine(this.theme, this.runStatus),
+			);
 		}
 
 		if (this.settings.visibility.context) {
@@ -461,4 +479,52 @@ function formatHeaderSummary(
 	const maxModelWidth = contentWidth - separator.length - contextLabel.length;
 	if (maxModelWidth <= 0) return formatters.formatContext(contextLabel);
 	return `${formatters.formatModel(truncateToWidth(modelLabel, maxModelWidth, "…", false))}${separator}${formatters.formatContext(contextLabel)}`;
+}
+
+function formatRunTimerLine(theme: Theme, runStatus: RunStatus): string {
+	const active = runStatus.startedAt !== null;
+	const elapsedMs = active
+		? Date.now() - (runStatus.startedAt ?? 0)
+		: runStatus.lastDurationMs;
+	if (active) {
+		return theme.fg(
+			"accent",
+			`⏱ runs for ${formatRunDuration(elapsedMs)}`,
+		);
+	}
+	if (elapsedMs > 0) {
+		return theme.fg(
+			"dim",
+			`⏱ ran for ${formatRunDuration(elapsedMs)}`,
+		);
+	}
+	return theme.fg("dim", "⏱ idle");
+}
+
+function formatCompactTimerLine(
+	runStatus: RunStatus,
+	visible: boolean,
+): string | null {
+	if (!visible) return null;
+	const active = runStatus.startedAt !== null;
+	const elapsedMs = active
+		? Date.now() - (runStatus.startedAt ?? 0)
+		: runStatus.lastDurationMs;
+	if (active) return `⏱ runs for ${formatRunDuration(elapsedMs)}`;
+	if (elapsedMs > 0) return `⏱ ran for ${formatRunDuration(elapsedMs)}`;
+	return null;
+}
+
+function formatRunDuration(ms: number): string {
+	const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
+	if (hours > 0) {
+		return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+	}
+	if (minutes > 0) {
+		return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+	}
+	return `${seconds}s`;
 }

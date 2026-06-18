@@ -179,6 +179,7 @@ describe("pi-hud extension", () => {
 				project: true,
 				worktrees: true,
 				mcps: true,
+				timer: true,
 			},
 		});
 		mockSettingsFile("/agent/settings.json", {
@@ -205,6 +206,7 @@ describe("pi-hud extension", () => {
 				project: true,
 				worktrees: true,
 				mcps: false,
+				timer: true,
 			},
 		});
 		mockSettingsFile("/agent/settings.json", {
@@ -277,6 +279,7 @@ describe("pi-hud extension", () => {
 					project: false,
 					worktrees: false,
 					mcps: false,
+					timer: false,
 					subagents: false,
 				},
 			},
@@ -294,6 +297,8 @@ describe("pi-hud extension", () => {
 		expect(rendered).not.toContain("branch main");
 		expect(rendered).not.toContain("Git worktrees");
 		expect(rendered).not.toContain("Configured MCPs");
+		expect(rendered).not.toContain("Timer");
+		expect(rendered).not.toContain("⏱");
 
 		for (const handler of eventHandlers.get("tool_execution_start") ?? [])
 			await handler(
@@ -2151,5 +2156,233 @@ describe("pi-hud extension", () => {
 		expect(rendered).toContain("0 run");
 		expect(rendered).toContain("0 done");
 		expect(rendered).toContain("1 err");
+	});
+
+	describe("run timer", () => {
+		async function getOverlayRender(
+			harness: ReturnType<typeof createHarness>,
+			width = 42,
+		): Promise<string> {
+			return harness.capturedComponents[0]!.render(width).join("\n");
+		}
+
+		async function getFooterRender(
+			harness: ReturnType<typeof createHarness>,
+			width = 200,
+		): Promise<string> {
+			return harness.capturedFooterComponents[0]!
+				.render(width)
+				.map(unwrapBg)
+				.join("\n");
+		}
+
+		test("footer shows live `runs for` segment while the agent is running", async () => {
+			vi.useFakeTimers();
+			try {
+				vi.setSystemTime(new Date("2026-06-18T12:00:00Z"));
+				mockSettingsFile("/repo/project/.pi/settings.json", {
+					hud: { mode: "footer" },
+				});
+				const harness = createHarness({ showThemeColors: true });
+				for (const handler of harness.eventHandlers.get("session_start") ??
+					[]) {
+					await handler({ type: "session_start" }, harness.ctx);
+				}
+
+				vi.setSystemTime(new Date("2026-06-18T12:00:00Z"));
+				for (const handler of harness.eventHandlers.get("agent_start") ??
+					[]) {
+					await handler({ type: "agent_start" }, harness.ctx);
+				}
+
+				vi.setSystemTime(new Date("2026-06-18T12:00:42Z"));
+				const footer = await getFooterRender(harness);
+				expect(footer).toContain("⏱ runs for 42s");
+				expect(footer).not.toContain("ran for");
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		test("footer shows `ran for` after the run ends and resets on the next run", async () => {
+			vi.useFakeTimers();
+			try {
+				mockSettingsFile("/repo/project/.pi/settings.json", {
+					hud: { mode: "footer" },
+				});
+				const harness = createHarness({ showThemeColors: true });
+				for (const handler of harness.eventHandlers.get("session_start") ??
+					[]) {
+					await handler({ type: "session_start" }, harness.ctx);
+				}
+
+				vi.setSystemTime(new Date("2026-06-18T12:00:00Z"));
+				for (const handler of harness.eventHandlers.get("agent_start") ??
+					[]) {
+					await handler({ type: "agent_start" }, harness.ctx);
+				}
+
+				vi.setSystemTime(new Date("2026-06-18T12:01:23Z"));
+				for (const handler of harness.eventHandlers.get("agent_end") ??
+					[]) {
+					await handler({ type: "agent_end" }, harness.ctx);
+				}
+
+				const footer = await getFooterRender(harness);
+				expect(footer).toContain("⏱ ran for 1m 23s");
+				expect(footer).not.toContain("runs for");
+
+				// Next run resets the visible state to "runs for" with a fresh counter.
+				vi.setSystemTime(new Date("2026-06-18T12:05:00Z"));
+				for (const handler of harness.eventHandlers.get("agent_start") ??
+					[]) {
+					await handler({ type: "agent_start" }, harness.ctx);
+				}
+				vi.setSystemTime(new Date("2026-06-18T12:05:05Z"));
+				const afterReset = await getFooterRender(harness);
+				expect(afterReset).toContain("⏱ runs for 5s");
+				expect(afterReset).not.toContain("1m 23s");
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		test("footer omits the timer segment when visibility.timer is off", async () => {
+			vi.useFakeTimers();
+			try {
+				mockSettingsFile("/repo/project/.pi/settings.json", {
+					hud: { mode: "footer", visibility: { timer: false } },
+				});
+				const harness = createHarness({ showThemeColors: true });
+				for (const handler of harness.eventHandlers.get("session_start") ??
+					[]) {
+					await handler({ type: "session_start" }, harness.ctx);
+				}
+
+				vi.setSystemTime(new Date("2026-06-18T12:00:00Z"));
+				for (const handler of harness.eventHandlers.get("agent_start") ??
+					[]) {
+					await handler({ type: "agent_start" }, harness.ctx);
+				}
+				vi.setSystemTime(new Date("2026-06-18T12:00:30Z"));
+				const footer = await getFooterRender(harness);
+				expect(footer).not.toContain("⏱");
+				expect(footer).not.toContain("runs for");
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		test("overlay renders a Timer section with live elapsed in expanded view", async () => {
+			vi.useFakeTimers();
+			try {
+				const harness = createHarness();
+				await harness.commands.get("hud")!.handler("", harness.ctx);
+				vi.setSystemTime(new Date("2026-06-18T12:00:00Z"));
+				for (const handler of harness.eventHandlers.get("agent_start") ??
+					[]) {
+					await handler({ type: "agent_start" }, harness.ctx);
+				}
+
+				vi.setSystemTime(new Date("2026-06-18T12:02:05Z"));
+				let rendered = await getOverlayRender(harness);
+				expect(rendered).toContain("Timer");
+				expect(rendered).toContain("runs for 2m 05s");
+				expect(rendered).not.toContain("ran for");
+
+				vi.setSystemTime(new Date("2026-06-18T12:02:09Z"));
+				for (const handler of harness.eventHandlers.get("agent_end") ??
+					[]) {
+					await handler({ type: "agent_end" }, harness.ctx);
+				}
+				rendered = await getOverlayRender(harness);
+				expect(rendered).toContain("Timer");
+				expect(rendered).toContain("ran for 2m 09s");
+				expect(rendered).not.toContain("runs for");
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		test("overlay compact view shows a single timer line", async () => {
+			vi.useFakeTimers();
+			try {
+				const harness = createHarness();
+				await harness.commands.get("hud")!.handler("", harness.ctx);
+				// Shrink to compact
+				await harness.shortcuts.get("ctrl+h")!.handler(harness.ctx);
+				vi.setSystemTime(new Date("2026-06-18T12:00:00Z"));
+				for (const handler of harness.eventHandlers.get("agent_start") ??
+					[]) {
+					await handler({ type: "agent_start" }, harness.ctx);
+				}
+				vi.setSystemTime(new Date("2026-06-18T12:00:17Z"));
+				const rendered = await getOverlayRender(harness, 26);
+				expect(rendered).toContain("⏱ runs for 17s");
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		test("overlay omits the Timer section when visibility.timer is off", async () => {
+			vi.useFakeTimers();
+			try {
+				mockSettingsFile("/repo/project/.pi/settings.json", {
+					hud: { visibility: { timer: false } },
+				});
+				const harness = createHarness();
+				await harness.commands.get("hud")!.handler("", harness.ctx);
+				vi.setSystemTime(new Date("2026-06-18T12:00:00Z"));
+				for (const handler of harness.eventHandlers.get("agent_start") ??
+					[]) {
+					await handler({ type: "agent_start" }, harness.ctx);
+				}
+				vi.setSystemTime(new Date("2026-06-18T12:00:10Z"));
+				const rendered = await getOverlayRender(harness);
+				expect(rendered).not.toContain("Timer");
+				expect(rendered).not.toContain("⏱");
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		test("formats elapsed with the right boundary thresholds", async () => {
+			vi.useFakeTimers();
+			try {
+				mockSettingsFile("/repo/project/.pi/settings.json", {
+					hud: { mode: "footer" },
+				});
+				const harness = createHarness({ showThemeColors: true });
+				for (const handler of harness.eventHandlers.get("session_start") ??
+					[]) {
+					await handler({ type: "session_start" }, harness.ctx);
+				}
+
+				vi.setSystemTime(new Date("2026-06-18T12:00:00Z"));
+				for (const handler of harness.eventHandlers.get("agent_start") ??
+					[]) {
+					await handler({ type: "agent_start" }, harness.ctx);
+				}
+
+				vi.setSystemTime(new Date("2026-06-18T12:00:59Z"));
+				expect(await getFooterRender(harness)).toContain("⏱ runs for 59s");
+
+				vi.setSystemTime(new Date("2026-06-18T12:01:00Z"));
+				expect(await getFooterRender(harness)).toContain("⏱ runs for 1m 00s");
+
+				vi.setSystemTime(new Date("2026-06-18T12:59:59Z"));
+				expect(await getFooterRender(harness)).toContain(
+					"⏱ runs for 59m 59s",
+				);
+
+				vi.setSystemTime(new Date("2026-06-18T13:00:00Z"));
+				expect(await getFooterRender(harness)).toContain("⏱ runs for 1h 00m");
+
+				vi.setSystemTime(new Date("2026-06-18T14:05:00Z"));
+				expect(await getFooterRender(harness)).toContain("⏱ runs for 2h 05m");
+			} finally {
+				vi.useRealTimers();
+			}
+		});
 	});
 });
