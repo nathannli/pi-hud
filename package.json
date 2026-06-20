@@ -1,6 +1,6 @@
 {
   "name": "pi-hud",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "Persistent HUD extension for Pi showing project, context, MCP, git, and subagent status.",
   "type": "module",
   "license": "MIT",
@@ -67,12 +67,12 @@
   },
   "devDependencies": {
     "@changesets/cli": "2.31.0",
-    "@earendil-works/pi-ai": "0.78.0",
-    "@earendil-works/pi-coding-agent": "0.78.0",
-    "@earendil-works/pi-tui": "0.78.0",
+    "@earendil-works/pi-ai": "0.79.6",
+    "@earendil-works/pi-coding-agent": "0.79.6",
+    "@earendil-works/pi-tui": "0.79.6",
     "tsx": "4.22.4",
     "typescript": "6.0.3",
-    "vitest": "4.1.8"
+    "vitest": "4.1.9"
   },
   "engines": {
     "node": ">=22.19.0"
