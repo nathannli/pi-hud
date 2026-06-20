@@ -2,7 +2,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Api, Model } from "@earendil-works/pi-ai";
 
 export function getModelLabel(model: Model<Api> | undefined): string {
-	return model?.name ?? model?.id ?? "No model";
+	const modelLabel = model?.name ?? model?.id ?? "No model";
+	const providerLabel = model?.provider?.trim();
+	if (!providerLabel || providerLabel === modelLabel) return modelLabel;
+	return `${providerLabel} / ${modelLabel}`;
 }
 
 export function getThinkingLabel(

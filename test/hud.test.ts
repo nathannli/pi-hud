@@ -1201,6 +1201,17 @@ describe("pi-hud extension", () => {
 		expect(rendered).toContain("Pi HUD");
 	});
 
+	test("shows provider with model in overlay context", async () => {
+		const { commands, ctx, capturedComponents } = createHarness({
+			provider: "openai-codex",
+		});
+
+		await commands.get("hud")!.handler("", ctx);
+		const rendered = capturedComponents[0]!.render(80).join("\n");
+
+		expect(rendered).toContain("openai-codex / Model Name · 6.0% ctx");
+	});
+
 	test("preserves context usage in compact header with long model names", async () => {
 		const { commands, shortcuts, ctx, capturedComponents } = createHarness({
 			modelName: "Very Long Model Name For Header",
@@ -1599,6 +1610,25 @@ describe("pi-hud extension", () => {
 		expect(footerText).toContain(
 			"🔁 Session  resume: pi --session session-1234",
 		);
+	});
+
+	test("footer shows provider with model", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness({
+			provider: "openai-codex",
+		});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const footerText = capturedFooterComponents[0]!
+			.render(140)
+			.map(unwrapBg)
+			.join("\n");
+		expect(footerText).toContain("openai-codex / Model Name");
 	});
 
 	test("footer subscription usage display hides token and cost details", async () => {
