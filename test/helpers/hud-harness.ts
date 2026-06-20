@@ -190,7 +190,7 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 			cacheRead: 50,
 			cacheWrite: 25,
 			totalTokens: 1275,
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0.01 },
+			cost: { input: 0.004, output: 0.003, cacheRead: 0.002, cacheWrite: 0.001, total: 0.01 },
 		},
 	};
 
@@ -236,6 +236,12 @@ export function createHarness(options: HarnessOptions = {}): HudHarness {
 			provider: options.provider,
 			reasoning: options.modelReasoning ?? true,
 			contextWindow,
+			cost: {
+				input: 0.6,
+				output: 4.0,
+				cacheRead: 0.05,
+				cacheWrite: 0.6,
+			},
 		},
 	} as unknown as ExtensionCommandContext;
 

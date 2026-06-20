@@ -7,6 +7,10 @@ export interface SessionStats {
 	cacheWriteTokens: number;
 	totalTokens: number;
 	cost: number;
+	inputCost: number;
+	outputCost: number;
+	cacheReadCost: number;
+	cacheWriteCost: number;
 	assistantMessages: number;
 }
 

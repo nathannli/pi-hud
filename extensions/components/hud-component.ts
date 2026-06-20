@@ -27,6 +27,7 @@ import type {
 	SubagentStatus,
 } from "../types/hud.js";
 import {
+	formatCostBreakdown,
 	formatElapsed,
 	formatNumber,
 	formatShortcut,
@@ -362,6 +363,11 @@ export class HudComponent implements Component {
 			this.pushLine(
 				lines,
 				innerWidth,
+				this.theme.fg("dim", formatCostBreakdown(stats)),
+			);
+			this.pushLine(
+				lines,
+				innerWidth,
 				this.theme.fg(
 					"dim",
 					`in ${formatNumber(stats.inputTokens)} out ${formatNumber(stats.outputTokens)}`,
@@ -473,6 +479,10 @@ export class HudComponent implements Component {
 			cacheWriteTokens: 0,
 			totalTokens: 0,
 			cost: 0,
+			inputCost: 0,
+			outputCost: 0,
+			cacheReadCost: 0,
+			cacheWriteCost: 0,
 			assistantMessages: 0,
 		};
 
@@ -487,6 +497,10 @@ export class HudComponent implements Component {
 			stats.cacheWriteTokens += message.usage.cacheWrite || 0;
 			stats.totalTokens += message.usage.totalTokens || 0;
 			stats.cost += message.usage.cost.total || 0;
+			stats.inputCost += message.usage.cost.input || 0;
+			stats.outputCost += message.usage.cost.output || 0;
+			stats.cacheReadCost += message.usage.cost.cacheRead || 0;
+			stats.cacheWriteCost += message.usage.cost.cacheWrite || 0;
 			stats.assistantMessages++;
 		}
 

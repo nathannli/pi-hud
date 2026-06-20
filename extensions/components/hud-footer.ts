@@ -35,7 +35,7 @@ import type {
 	SessionStats,
 	SubagentStatus,
 } from "../types/hud.js";
-import { formatNumber } from "../utils/formatters.js";
+import { formatModelPricing, formatNumber } from "../utils/formatters.js";
 import { formatGitPowerlineLabel } from "../utils/git-powerline.js";
 import { getModelLabel, getThinkingLabel } from "../utils/model-status.js";
 
@@ -128,6 +128,7 @@ export class HudFooter implements Component {
 			modelLabel,
 			thinkingLabel,
 			cost: stats.cost,
+			costBreakdown: formatModelPricing(this.ctx.model?.cost),
 			chatGptLimitUsage,
 			neuralwattQuotaUsage,
 			runTimerSuffix: this.settings.visibility.timer
@@ -233,6 +234,7 @@ function formatContextLine(options: {
 	chatGptLimitUsage: string | undefined;
 	neuralwattQuotaUsage: string | undefined;
 	cost: number;
+	costBreakdown: string;
 	runTimerSuffix: string | null;
 }): string {
 	const contextUsage = `${options.contextIndicatorText} used/${formatNumber(options.contextWindow)} ctx`;
@@ -254,7 +256,7 @@ function formatContextLine(options: {
 	const thinkingSegment = options.thinkingLabel
 		? ` │ ${options.thinkingLabel}`
 		: "";
-	return `▏ 🧠 Context  ${formatContextTokens(options.contextTokens)} tokens │ ${contextUsage} │ ${options.modelLabel}${thinkingSegment}${externalUsageSegment} │ $${options.cost.toFixed(5)} spent${runTimerSuffix}`;
+	return `▏ 🧠 Context  ${formatContextTokens(options.contextTokens)} tokens │ ${contextUsage} │ ${options.modelLabel}${thinkingSegment}${externalUsageSegment} │ $${options.cost.toFixed(5)} spent (${options.costBreakdown})${runTimerSuffix}`;
 }
 
 function formatRunTimerSuffix(runStatus: RunStatus): string | null {
@@ -343,6 +345,10 @@ function computeStats(ctx: ExtensionContext): SessionStats {
 		cacheWriteTokens: 0,
 		totalTokens: 0,
 		cost: 0,
+		inputCost: 0,
+		outputCost: 0,
+		cacheReadCost: 0,
+		cacheWriteCost: 0,
 		assistantMessages: 0,
 	};
 
@@ -357,6 +363,10 @@ function computeStats(ctx: ExtensionContext): SessionStats {
 		stats.cacheWriteTokens += message.usage.cacheWrite || 0;
 		stats.totalTokens += message.usage.totalTokens || 0;
 		stats.cost += message.usage.cost.total || 0;
+		stats.inputCost += message.usage.cost.input || 0;
+		stats.outputCost += message.usage.cost.output || 0;
+		stats.cacheReadCost += message.usage.cost.cacheRead || 0;
+		stats.cacheWriteCost += message.usage.cost.cacheWrite || 0;
 		stats.assistantMessages++;
 	}
 

@@ -1320,6 +1320,20 @@ describe("pi-hud extension", () => {
 		expect(rendered).toContain("<accent>0.6% used</accent>");
 	});
 
+	test("overlay shows per-category input/output/cache cost breakdown", async () => {
+		const { commands, ctx, capturedComponents } = createHarness({
+			showThemeColors: true,
+		});
+
+		await commands.get("hud")!.handler("", ctx);
+		const rendered = capturedComponents[0]!.render(80).join("\n");
+
+		expect(rendered).toContain("$0.0100 spent");
+		expect(rendered).toContain(
+			"in $0.00400 out $0.00300 cache $0.00200/$0.00100",
+		);
+	});
+
 	test("skips worktree lookup while compact", async () => {
 		const { commands, shortcuts, ctx, capturedComponents } = createHarness();
 
@@ -1629,6 +1643,28 @@ describe("pi-hud extension", () => {
 			.map(unwrapBg)
 			.join("\n");
 		expect(footerText).toContain("openai-codex / Model Name");
+	});
+
+	test("footer shows static model pricing breakdown when width allows", async () => {
+		mockSettingsFile("/repo/project/.pi/settings.json", {
+			hud: { mode: "footer" },
+		});
+		const { eventHandlers, ctx, capturedFooterComponents } = createHarness({
+			mcpAdapter: true,
+		});
+
+		for (const handler of eventHandlers.get("session_start") ?? []) {
+			await handler({ type: "session_start" }, ctx);
+		}
+
+		const footerText = capturedFooterComponents[0]!
+			.render(220)
+			.map(unwrapBg)
+			.join("\n");
+		expect(footerText).toContain("$0.01000 spent");
+		expect(footerText).toContain(
+			"$0.60/mil tok in, $0.05/mil tok cache, $4.00/mil tok out",
+		);
 	});
 
 	test("footer subscription usage display hides token and cost details", async () => {
